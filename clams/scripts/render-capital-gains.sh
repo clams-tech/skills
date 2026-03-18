@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # render-capital-gains.sh — Reads clams capital-gains JSON from stdin,
-# renders a PDF report.
+# renders a branded PDF report.
 #
 # Usage:
 #   clams reports capital-gains --start 2025-01-01T00:00:00Z --end 2025-12-31T23:59:59Z --machine --format json \
@@ -41,50 +41,86 @@ fi
 
 JSON=$(cat)
 
-# Extract header fields
+# ── Extract header fields ──
+
 FIAT_CURRENCY=$(echo "$JSON" | jq -r '.data.fiat_currency')
 ALGORITHM=$(echo "$JSON" | jq -r '.data.algorithm')
 START_DATE=$(echo "$JSON" | jq -r '.data.range_start' | sed 's/T.*//')
 END_DATE=$(echo "$JSON" | jq -r '.data.range_end' | sed 's/T.*//')
+NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
 
-# Build disposal rows as TSV
+# ── Summary ──
+
+DISPOSAL_COUNT=$(echo "$JSON" | jq -r '.data.summary.disposal_count')
+ROW_COUNT=$(echo "$JSON" | jq -r '.data.summary.row_count')
+TOTAL_QTY_DISPOSED=$(echo "$JSON" | jq -r '.data.summary.total_quantity_disposed | tonumber / 100000000')
+TOTAL_GROSS_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_gross_proceeds_fiat | tonumber')
+TOTAL_FEES=$(echo "$JSON" | jq -r '.data.summary.total_fiat_fees_fiat | tonumber')
+TOTAL_NET_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_net_proceeds_fiat | tonumber')
+TOTAL_COST_BASIS=$(echo "$JSON" | jq -r '.data.summary.total_cost_basis_fiat | tonumber')
+TOTAL_GAIN_LOSS=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_fiat | tonumber')
+TOTAL_GAIN_PCT=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_percentage | tonumber')
+
+# ── Format summary values ──
+
+QTY_DISPOSED_FMT=$(printf "%.8f" "$TOTAL_QTY_DISPOSED")
+GROSS_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_GROSS_PROCEEDS")
+FEES_FMT=$(printf "%'.2f" "$TOTAL_FEES")
+NET_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_NET_PROCEEDS")
+COST_BASIS_FMT=$(printf "%'.2f" "$TOTAL_COST_BASIS")
+GAIN_LOSS_FMT=$(printf "%'.2f" "$TOTAL_GAIN_LOSS")
+GAIN_PCT_FMT=$(printf "%.2f" "$TOTAL_GAIN_PCT")
+
+# Gain/loss helpers
+gain_class() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "positive" : "negative" }'; }
+sign_prefix() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "+" : "" }'; }
+
+TOTAL_GL_CLASS=$(gain_class "$TOTAL_GAIN_LOSS")
+TOTAL_GL_SIGN=$(sign_prefix "$TOTAL_GAIN_LOSS")
+GAIN_PCT_SIGN=$(sign_prefix "$TOTAL_GAIN_PCT")
+
+# ── Build disposal rows ──
+
 DISPOSAL_ROWS=$(echo "$JSON" | jq -r '
   .data.rows[] |
   (.sale_timestamp | split("T")[0]) as $sale_date |
   (.purchase_timestamp | split("T")[0]) as $purchase_date |
-  (.quantity_disposed | tonumber / 100000000000) as $qty |
-  (.net_proceeds_fiat | tonumber) as $proceeds |
-  (.cost_basis_fiat | tonumber) as $cost_basis |
-  (.realized_gain_fiat | tonumber) as $gain_loss |
-  (if .holding_period_days >= 365 then "long-term" else "short-term" end) as $holding |
-  "\($sale_date)\t\($purchase_date)\t\($qty)\t\($proceeds)\t\($cost_basis)\t\($gain_loss)\t\($holding)"
+  (.quantity_disposed | tonumber / 100000000) as $qty |
+  (.gross_proceeds_fiat | tonumber) as $gross |
+  (.fiat_fees_fiat | tonumber) as $fees |
+  (.net_proceeds_fiat | tonumber) as $net |
+  (.cost_basis_fiat | tonumber) as $cb |
+  (.realized_gain_fiat | tonumber) as $gain |
+  (.holding_period_days) as $days |
+  (if .holding_period_days >= 365 then "LT" else "ST" end) as $holding |
+  (.sale_connections // [] | map(.connection_label) | join(", ")) as $conn |
+  "\($sale_date)\t\($purchase_date)\t\($qty)\t\($gross)\t\($fees)\t\($net)\t\($cb)\t\($gain)\t\($days)\t\($holding)\t\($conn)"
 ')
 
-# Extract summary totals
-TOTAL_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_net_proceeds_fiat | tonumber')
-TOTAL_COST_BASIS=$(echo "$JSON" | jq -r '.data.summary.total_cost_basis_fiat | tonumber')
-TOTAL_GAIN_LOSS=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_fiat | tonumber')
+# ── Generate table rows HTML ──
 
-# Generate table rows HTML with gain/loss coloring
 TABLE_HTML=""
-while IFS=$'\t' read -r sale_date purchase_date qty proceeds cost_basis gain_loss holding; do
+while IFS=$'\t' read -r sale_date purchase_date qty gross fees net cb gain days holding conn; do
   [ -z "$sale_date" ] && continue
   qty_fmt=$(printf "%.8f" "$qty")
-  proceeds_fmt=$(printf "%.2f" "$proceeds")
-  cost_basis_fmt=$(printf "%.2f" "$cost_basis")
-  gain_loss_fmt=$(printf "%.2f" "$gain_loss")
-  gl_class=$(echo "$gain_loss" | awk '{print ($1 >= 0) ? "positive" : "negative"}')
-  TABLE_HTML="${TABLE_HTML}<tr><td>${sale_date}</td><td>${purchase_date}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">${proceeds_fmt}</td><td class=\"num\">${cost_basis_fmt}</td><td class=\"num ${gl_class}\">${gain_loss_fmt}</td><td>${holding}</td></tr>"
+  gross_fmt=$(printf "%'.2f" "$gross")
+  fees_fmt=$(printf "%'.2f" "$fees")
+  net_fmt=$(printf "%'.2f" "$net")
+  cb_fmt=$(printf "%'.2f" "$cb")
+  gain_fmt=$(printf "%'.2f" "$gain")
+  gl_class=$(gain_class "$gain")
+  gl_sign=$(sign_prefix "$gain")
+  TABLE_HTML="${TABLE_HTML}<tr><td>${sale_date}</td><td>${purchase_date}</td><td>${conn}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">${gross_fmt}</td><td class=\"num\">${fees_fmt}</td><td class=\"num\">${net_fmt}</td><td class=\"num\">${cb_fmt}</td><td class=\"num ${gl_class}\">${gl_sign}${gain_fmt}</td><td class=\"num\">${days}</td><td>${holding}</td></tr>"
 done <<< "$DISPOSAL_ROWS"
 
-# Format summary totals
-TOTAL_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_PROCEEDS")
-TOTAL_COST_BASIS_FMT=$(printf "%'.2f" "$TOTAL_COST_BASIS")
-TOTAL_GAIN_LOSS_FMT=$(printf "%'.2f" "$TOTAL_GAIN_LOSS")
-TOTAL_GL_TEXT=$(echo "$TOTAL_GAIN_LOSS" | awk '{print ($1 >= 0) ? "positive" : "negative"}')
+# Non-final warning
+NON_FINAL_HTML=""
+if [ "$NON_FINAL" = "true" ]; then
+  NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
+fi
 
 emit_html() {
-cat <<HTMLEOF
+cat <<'HTMLEOF_TOP'
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -94,141 +130,242 @@ cat <<HTMLEOF
 <style>
   @page {
     size: letter landscape;
-    margin: 56px 56px 64px 56px;
-    @top-left {
-      content: "";
-      border-top: 2px solid #1a1a1a;
-      width: 100%;
-    }
+    margin: 48px 40px 56px 40px;
     @bottom-left {
-      content: "Clams";
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      font-size: 8px; color: #bbb; letter-spacing: 0.05em;
+      content: "Generated by Clams";
+      font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+      font-size: 7px; color: #646663; letter-spacing: 0.03em;
     }
     @bottom-right {
       content: "Page " counter(page) " of " counter(pages);
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-      font-size: 8px; color: #bbb;
+      font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+      font-size: 7px; color: #646663;
     }
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #fff;
-    color: #1a1a1a;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  h1 {
-    font-size: 22px;
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    margin-bottom: 2px;
-  }
-  .meta {
-    color: #999;
+    background: #ffffff;
+    color: #212420;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
     font-size: 11px;
-    margin-bottom: 20px;
+    line-height: 1.45;
+  }
+  /* ── Header ── */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #212420;
+    margin-bottom: 16px;
+  }
+  .header-left { flex: 1; }
+  .header-right {
+    flex-shrink: 0;
+    margin-left: 24px;
+  }
+  .report-name {
+    font-size: 20px;
+    font-weight: 600;
+    color: #212420;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+  .report-meta {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+    font-size: 9px;
+    color: #4d504d;
+    line-height: 1.6;
+  }
+  .warning {
+    background: #fef3cd;
+    border: 1px solid #e6c44e;
+    color: #664d03;
+    font-size: 9px;
+    padding: 4px 8px;
+    margin-top: 8px;
+  }
+  /* ── Section labels ── */
+  h2 {
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #646663;
+    margin: 18px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #e0ddd6;
   }
   /* ── Summary metrics ── */
   .summary {
     display: flex;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 16px;
-    margin-bottom: 16px;
+    gap: 0;
+    padding-bottom: 12px;
+    margin-bottom: 0;
   }
   .summary-metric {
     flex: 1;
+    padding: 6px 0;
+  }
+  .summary-metric + .summary-metric {
+    padding-left: 16px;
+    border-left: 1px solid #e0ddd6;
   }
   .summary-label {
-    font-size: 10px;
+    font-size: 8px;
     font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: #999;
-    margin-bottom: 2px;
+    letter-spacing: 0.08em;
+    color: #646663;
+    margin-bottom: 1px;
   }
   .summary-value {
-    font-size: 18px;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .summary-sub {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+    font-size: 9px;
+    color: #4d504d;
+    margin-top: 1px;
   }
   .positive { color: #15803d; }
-  .negative { color: #b91c1c; }
-  h2 {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #999;
-    margin: 20px 0 10px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid #e5e7eb;
+  .negative { color: #8f0709; }
+  /* ── Detail grid ── */
+  .details {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    column-gap: 24px;
   }
+  .detail {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 3px 0;
+    border-bottom: 1px solid #f0ede6;
+    font-size: 10px;
+  }
+  .detail-label { color: #646663; }
+  .detail-value {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+    font-weight: 500;
+    font-size: 10px;
+  }
+  /* ── Tables ── */
   table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 11px;
+    font-size: 8px;
   }
   th {
     text-align: left;
-    color: #999;
-    font-size: 10px;
-    font-weight: 500;
+    color: #646663;
+    font-size: 7px;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    padding: 6px 6px 6px 0;
-    border-bottom: 1px solid #d1d5db;
+    padding: 4px 4px 4px 0;
+    border-bottom: 1px solid #c8c5be;
   }
-  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  th.num, td.num {
+    text-align: right;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+  }
   td {
-    padding: 4px 6px 4px 0;
-    border-bottom: 1px solid #f3f4f6;
+    padding: 3px 4px 3px 0;
+    border-bottom: 1px solid #f0ede6;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+    font-size: 8px;
   }
   tr { page-break-inside: avoid; }
-  tbody tr:nth-child(even) td { background: #fafafa; }
+  tbody tr:nth-child(even) td { background: #fafaf8; }
   tr.total td {
-    font-weight: 600;
-    border-top: 2px solid #1a1a1a;
+    font-weight: 700;
+    border-top: 2px solid #212420;
     border-bottom: none;
-    padding-top: 8px;
+    padding-top: 6px;
+    font-size: 8px;
   }
 </style>
 </head>
 <body>
-<h1>Capital Gains Report</h1>
-<p class="meta">${START_DATE} to ${END_DATE} &middot; ${FIAT_CURRENCY} &middot; ${ALGORITHM}</p>
+HTMLEOF_TOP
 
-<div class="summary">
-  <div class="summary-metric">
-    <div class="summary-label">Total Proceeds</div>
-    <div class="summary-value">\$${TOTAL_PROCEEDS_FMT}</div>
+cat <<HTMLEOF_BODY
+<div class="header">
+  <div class="header-left">
+    <div class="report-name">Capital Gains Report</div>
+    <div class="report-meta">
+      ${START_DATE} to ${END_DATE}<br>
+      Cost basis method: ${ALGORITHM} &middot; Currency: ${FIAT_CURRENCY} &middot; ${DISPOSAL_COUNT} disposals, ${ROW_COUNT} lot selections
+    </div>
+    ${NON_FINAL_HTML}
   </div>
-  <div class="summary-metric">
-    <div class="summary-label">Total Cost Basis</div>
-    <div class="summary-value">\$${TOTAL_COST_BASIS_FMT}</div>
-  </div>
-  <div class="summary-metric">
-    <div class="summary-label">Net Gain / Loss</div>
-    <div class="summary-value ${TOTAL_GL_TEXT}">\$${TOTAL_GAIN_LOSS_FMT}</div>
+  <div class="header-right">
+    <svg width="90" height="21" viewBox="0 0 346 79" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M48.6001 14.0073V14.1525C48.3817 17.1282 47.5444 19.4506 46.161 21.1199C44.7412 22.8254 42.7754 23.6964 40.4455 23.6964C37.8971 23.6964 35.3852 22.39 33.5286 20.1038C31.6719 17.8539 30.6162 14.842 30.6162 11.8663C30.6162 8.96325 31.6719 5.9876 33.565 3.66514C35.458 1.34267 37.9335 0 40.4091 0C42.3021 0 43.8675 0.544327 45.3237 1.74185L46.1974 0.145154H47.9812V9.79789H45.9426V9.7616C45.5421 7.25769 44.8504 5.37069 43.8675 4.06431C42.9574 2.86679 41.7924 2.24989 40.4819 2.24989C39.1349 2.24989 37.9335 2.79421 37.0962 3.73771C36.1133 4.86266 35.5672 6.49564 35.5672 8.52779V14.8057C35.5672 16.8016 36.0405 18.4708 36.987 19.6684C37.8607 20.7933 39.0985 21.3739 40.5547 21.3739C42.1929 21.3739 43.5399 20.757 44.5228 19.5232C45.5421 18.2531 46.161 16.4024 46.3794 14.0073V13.9711H48.6001V14.0073Z" fill="#212420"/>
+      <path d="M30.6162 64.9927V64.8475C30.8346 61.8719 31.6719 59.5494 33.0553 57.8801C34.4751 56.1746 36.441 55.3036 38.7708 55.3036C41.3192 55.3036 43.8311 56.61 45.6877 58.8962C47.5444 61.1461 48.6001 64.158 48.6001 67.1337C48.6001 70.0368 47.5444 73.0124 45.6513 75.3349C43.7583 77.6573 41.2828 79 38.8073 79C36.9142 79 35.3488 78.4557 33.8926 77.2582L33.0189 78.8549H31.2351V69.1658H33.2737V69.2021C33.6742 71.706 34.3659 73.593 35.3488 74.8994C36.2589 76.0969 37.4239 76.7138 38.7344 76.7138C40.0814 76.7138 41.2828 76.1695 42.1201 75.226C43.103 74.1011 43.6491 72.4681 43.6491 70.4359V64.158C43.6491 62.1622 43.1758 60.4929 42.2293 59.2954C41.3556 58.1704 40.1178 57.5898 38.6616 57.5898C37.0234 57.5898 35.6765 58.2067 34.6935 59.4405C33.6742 60.7106 33.0553 62.5613 32.8369 64.9564V64.9927H30.6162Z" fill="#212420"/>
+      <path d="M64.0721 27.8332L63.9629 27.9058C61.7058 29.8291 59.4487 30.9178 57.3008 31.0992C55.1165 31.2806 53.0779 30.5186 51.4397 28.8856C49.6558 27.1075 48.7821 24.3858 49.1098 21.4465C49.401 18.5434 50.7844 15.6766 52.8958 13.5719C54.9709 11.5034 57.8469 10.1608 60.7957 9.87045C63.7808 9.58014 66.5112 10.3785 68.2222 12.084C69.5692 13.4267 70.2609 14.9145 70.4429 16.8015L72.1903 16.2935L73.4645 17.5636L66.6204 24.3858L65.1642 22.9343C66.6568 20.9021 67.4941 19.0514 67.7125 17.4185C67.931 15.9306 67.5669 14.6605 66.6204 13.7533C65.6739 12.8098 64.4361 12.3381 63.162 12.4106C61.6694 12.4832 60.104 13.3179 58.6842 14.7331L54.2428 19.1603C52.823 20.5755 51.9857 22.0997 51.8037 23.5875C51.6217 25.0027 52.0949 26.3091 53.1143 27.3252C54.2792 28.4864 55.6626 28.9945 57.228 28.813C58.8298 28.6316 60.6136 27.7607 62.4703 26.2003L62.5067 26.164L64.0721 27.8332Z" fill="#212420"/>
+      <path d="M15.181 51.1668L15.2902 51.0942C17.5473 49.1709 19.8044 48.0822 21.9522 47.9008C24.1365 47.7194 26.1752 48.4814 27.8134 50.1144C29.5972 51.8925 30.4709 54.6142 30.1433 57.5535C29.852 60.4566 28.4687 63.3234 26.3572 65.4281C24.2821 67.4966 21.4062 68.8393 18.4574 69.1296C15.4722 69.4199 12.7419 68.6215 11.0308 66.916C9.68387 65.5733 8.99218 64.0855 8.81016 62.1985L7.06274 62.7065L5.78857 61.4364L12.6326 54.6142L14.0888 56.0657C12.5962 58.0979 11.7589 59.9486 11.5405 61.5816C11.3221 63.0694 11.6861 64.3395 12.6326 65.2467C13.5792 66.1902 14.8169 66.6619 16.0911 66.5894C17.5837 66.5168 19.1491 65.6822 20.5689 64.2669L25.0102 59.8397C26.43 58.4245 27.2673 56.9004 27.4493 55.4125C27.6314 53.9973 27.1581 52.6909 26.1388 51.6748C24.9738 50.5136 23.5904 50.0055 22.025 50.187C20.4232 50.3684 18.6394 51.2393 16.7828 52.7998L16.7464 52.836L15.181 51.1668Z" fill="#212420"/>
+      <path d="M65.1644 48.4814H65.0188C62.0336 48.2636 59.7037 47.429 58.0291 46.0501C56.318 44.6348 55.4443 42.6752 55.4443 40.3528C55.4443 37.8126 56.7549 35.3087 59.0484 33.4579C61.3055 31.6072 64.3271 30.5549 67.3123 30.5549C70.2246 30.5549 73.2098 31.6072 75.5397 33.4942C77.8696 35.3812 79.2166 37.8489 79.2166 40.3165C79.2166 42.2035 78.6705 43.7639 77.4691 45.2154L79.0709 46.0863V47.8645H69.3873V45.8323H69.4237C71.9356 45.4331 73.8287 44.7437 75.1392 43.7639C76.3406 42.8567 76.9595 41.6954 76.9595 40.389C76.9595 39.0464 76.4134 37.8489 75.4669 37.0142C74.3383 36.0344 72.7001 35.4901 70.6615 35.4901H64.3635C62.3612 35.4901 60.6866 35.9619 59.4853 36.9054C58.3567 37.7763 57.7742 39.0101 57.7742 40.4616C57.7742 42.0946 58.3931 43.4373 59.6309 44.4171C60.905 45.4331 62.7617 46.0501 65.1644 46.2678H65.2008V48.4814H65.1644Z" fill="#212420"/>
+      <path d="M14.0522 30.5186H14.1978C17.183 30.7363 19.5129 31.571 21.1875 32.9499C22.8985 34.3652 23.7722 36.3248 23.7722 38.6472C23.7722 41.1874 22.4617 43.6913 20.1682 45.542C17.9111 47.3928 14.8895 48.4451 11.9043 48.4451C8.99195 48.4451 6.00677 47.3928 3.67687 45.5058C1.34697 43.6188 0 41.1511 0 38.6835C0 36.7965 0.54607 35.2361 1.74742 33.7846L0.145619 32.9137V31.1355H9.82925V33.1677H9.79285C7.31733 33.6031 5.38789 34.3289 4.07732 35.3087C2.87597 36.2159 2.25709 37.3771 2.25709 38.6835C2.25709 40.0262 2.80316 41.2237 3.74968 42.0583C4.87822 43.0381 6.51643 43.5825 8.55509 43.5825H14.8531C16.8553 43.5825 18.53 43.1107 19.7313 42.1672C20.8599 41.2963 21.4423 40.0625 21.4423 38.6109C21.4423 36.978 20.8235 35.6353 19.5857 34.6555C18.3115 33.6394 16.4549 33.0225 14.0522 32.8048H14.0158V30.5186H14.0522Z" fill="#212420"/>
+      <path d="M123.211 74.323C107.962 74.323 94.6675 58.0505 94.6675 39.5368C94.6675 21.5103 108.353 4.75061 123.016 4.75061C129.076 4.75061 134.062 6.79685 138.754 11.2791L142.077 5.23781H144.619V32.9109H141.98C139.34 16.8332 132.693 8.06358 123.211 8.06358C114.218 8.06358 106.104 14.8844 106.104 29.403V48.7936C106.104 62.3378 113.143 71.01 123.407 71.01C134.844 71.01 141.882 62.143 143.25 46.5525H146.574C145.205 64.0918 136.701 74.323 123.211 74.323Z" fill="#212420"/>
+      <path d="M151.687 72.764V69.5484H159.214V9.52519H151.687V6.30965H162.537L166.936 4.75061L167.425 5.23781V69.5484H174.952V72.764H168.696L163.319 72.6665L157.943 72.764H151.687Z" fill="#212420"/>
+      <path d="M194.156 74.323C186.532 74.323 181.644 70.6203 181.644 64.6764V62.3378C181.644 55.8093 184.479 52.7887 192.104 51.3271C197.675 50.2552 207.451 48.0141 207.451 39.9266V38.1726C207.451 33.7878 205.496 30.8646 199.142 30.8646C195.232 30.8646 191.322 32.3262 189.269 34.4699V34.6648L190.54 35.152C193.961 36.5162 194.841 38.3675 194.841 40.5112C194.841 43.7267 192.495 46.0653 189.269 46.0653C186.238 46.0653 183.404 43.4344 183.404 39.5368C183.404 32.9109 191.224 27.5516 201.195 27.5516C205.984 27.5516 210.286 29.1107 212.729 31.0595C215.173 33.0083 215.662 34.7622 215.662 38.0752V65.5534C215.662 68.3791 217.03 70.0356 219.181 70.0356C222.505 70.0356 224.46 67.3073 224.46 62.5327V50.9373H227.685V62.7276C227.685 69.0612 224.362 73.7384 217.128 73.7384C211.556 73.7384 208.428 70.5228 207.939 66.0406H207.744C205.496 71.3024 200.315 74.323 194.156 74.323ZM190.246 65.1636C190.246 69.7433 193.081 70.7177 195.818 70.7177C202.661 70.7177 207.451 64.7739 207.451 56.1017V47.332H207.255C205.202 51.0348 199.435 52.7887 196.111 53.7631C192.397 54.8349 190.246 56.7837 190.246 61.5583V65.1636Z" fill="#212420"/>
+      <path d="M231.492 72.764V69.5484H239.019V32.3262H231.492V29.1107H242.343L246.742 27.5516L247.231 28.0388V38.0752H247.426C250.261 31.1569 255.148 27.5516 261.698 27.5516C265.119 27.5516 268.932 28.9158 271.082 30.7672C273.233 32.6185 273.819 34.4699 273.819 38.0752H274.015C276.849 31.1569 281.737 27.5516 288.384 27.5516C291.708 27.5516 295.52 28.9158 297.671 30.7672C299.821 32.6185 300.408 33.8853 300.408 37.0034V69.5484H307.935V72.764H301.679L296.302 72.6665L290.926 72.764H284.67V69.5484H292.197V37.1982C292.197 33.3006 290.242 31.1569 286.136 31.1569C278.707 31.1569 273.819 40.5112 273.819 54.4452V69.5484H281.346V72.764H275.09L269.714 72.6665L264.337 72.764H258.081V69.5484H265.608V37.1982C265.608 33.3006 263.653 31.1569 259.547 31.1569C252.118 31.1569 247.231 40.5112 247.231 54.4452V69.5484H254.757V72.764H248.501L243.125 72.6665L237.749 72.764H231.492Z" fill="#212420"/>
+      <path d="M314.524 74.0307V54.5426H317.065C318.825 66.2355 324.886 71.1075 331.533 71.1075C337.105 71.1075 340.33 67.8919 340.33 63.5071C340.33 60.0967 337.789 57.5633 333.585 56.1017L321.66 51.8143C318.336 50.645 314.719 46.3576 314.719 40.5112C314.719 33.6904 320.682 27.5516 327.818 27.5516C331.63 27.5516 334.954 28.8184 337.984 31.3518L340.624 27.844H342.774V44.0191H340.624C339.157 35.9315 334.27 30.6697 327.916 30.6697C323.713 30.6697 319.9 33.3006 319.9 37.588C319.9 40.7061 321.757 42.9472 326.45 44.6037L339.939 49.4757C343.067 50.645 346 55.0298 346 60.0967C346 67.3073 340.037 74.323 331.435 74.323C326.938 74.323 323.126 72.8614 319.216 69.3536L316.674 74.0307H314.524Z" fill="#212420"/>
+    </svg>
   </div>
 </div>
 
-<h2>Disposals</h2>
+<h2>Summary</h2>
+<div class="summary">
+  <div class="summary-metric">
+    <div class="summary-label">Gross Proceeds</div>
+    <div class="summary-value">\$${GROSS_PROCEEDS_FMT}</div>
+  </div>
+  <div class="summary-metric">
+    <div class="summary-label">Fees</div>
+    <div class="summary-value">\$${FEES_FMT}</div>
+  </div>
+  <div class="summary-metric">
+    <div class="summary-label">Net Proceeds</div>
+    <div class="summary-value">\$${NET_PROCEEDS_FMT}</div>
+  </div>
+  <div class="summary-metric">
+    <div class="summary-label">Cost Basis</div>
+    <div class="summary-value">\$${COST_BASIS_FMT}</div>
+  </div>
+  <div class="summary-metric">
+    <div class="summary-label">Realized Gain/Loss</div>
+    <div class="summary-value ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}\$${GAIN_LOSS_FMT}</div>
+    <div class="summary-sub">${GAIN_PCT_SIGN}${GAIN_PCT_FMT}%</div>
+  </div>
+</div>
+
+<h2>Detail</h2>
+<div class="details">
+  <div class="detail"><span class="detail-label">Disposals</span><span class="detail-value">${DISPOSAL_COUNT}</span></div>
+  <div class="detail"><span class="detail-label">Lot Selections</span><span class="detail-value">${ROW_COUNT}</span></div>
+  <div class="detail"><span class="detail-label">Total Qty Disposed</span><span class="detail-value">${QTY_DISPOSED_FMT} BTC</span></div>
+</div>
+
+<h2>Lot Selections</h2>
 <table>
   <thead>
-    <tr><th>Sale Date</th><th>Purchase Date</th><th class="num">Qty (BTC)</th><th class="num">Proceeds (${FIAT_CURRENCY})</th><th class="num">Cost Basis (${FIAT_CURRENCY})</th><th class="num">Gain/Loss (${FIAT_CURRENCY})</th><th>Holding</th></tr>
+    <tr><th>Sold</th><th>Acquired</th><th>Connection</th><th class="num">Qty (BTC)</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th><th class="num">Days</th><th>Term</th></tr>
   </thead>
   <tbody>
 ${TABLE_HTML}
-    <tr class="total"><td colspan="3">Totals</td><td class="num">${TOTAL_PROCEEDS_FMT}</td><td class="num">${TOTAL_COST_BASIS_FMT}</td><td class="num ${TOTAL_GL_TEXT}">${TOTAL_GAIN_LOSS_FMT}</td><td></td></tr>
+    <tr class="total"><td colspan="4">Totals</td><td class="num">${GROSS_PROCEEDS_FMT}</td><td class="num">${FEES_FMT}</td><td class="num">${NET_PROCEEDS_FMT}</td><td class="num">${COST_BASIS_FMT}</td><td class="num ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}${GAIN_LOSS_FMT}</td><td></td><td></td></tr>
   </tbody>
 </table>
 
 </body>
 </html>
-HTMLEOF
+HTMLEOF_BODY
 }
 
 emit_html | weasyprint -q - "$PDF_OUTPUT"
