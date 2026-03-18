@@ -6,7 +6,7 @@ The skill is organized into reference docs and bundled scripts:
 
 - [`SKILL.md`](clams/SKILL.md) — top-level routing and rules
 - [`references/`](clams/references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
-- [`scripts/`](clams/scripts/) — PDF render scripts and a state verification helper
+- [`scripts/`](clams/scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), plus a state verification helper
 
 ## Installation
 
