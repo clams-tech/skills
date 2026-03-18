@@ -2,14 +2,11 @@
 
 An [Agent Skill](https://agentskills.io) that teaches AI coding agents how to use [Clams](https://clams.tech)
 
-When installed, the skill gives your agent the knowledge to:
+The skill is organized into reference docs and bundled scripts:
 
-- Set up workspaces, profiles, and connections (xpub, Lightning, custodial, etc.)
-- Sync on-chain and off-chain transaction history
-- Process journals and generate reports (balance sheet, portfolio summary, capital gains)
-- Render branded PDF and CSV exports
-- Import custom CSV files from unsupported wallets / exchanges
-- Manage cost basis tracking with configurable algorithms (FIFO, LIFO, HIFO, etc.)
+- [`SKILL.md`](clams/SKILL.md) — top-level routing and rules
+- [`references/`](clams/references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
+- [`scripts/`](clams/scripts/) — PDF render scripts and a state verification helper
 
 ## Installation
 
