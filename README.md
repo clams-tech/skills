@@ -13,7 +13,28 @@ When installed, the skill gives your agent the knowledge to:
 
 ## Installation
 
-@TODO
+Requires [Clams CLI](https://clams.tech) installed and accessible on your `PATH`.
+
+### User-level (all projects)
+
+```bash
+git clone https://github.com/clams-tech/agent-skills.git
+cp -r agent-skills/clams ~/.agents/skills/clams
+```
+
+Or for Claude Code specifically:
+
+```bash
+cp -r agent-skills/clams ~/.claude/skills/clams
+```
+
+### Project-level (single repo)
+
+```bash
+cp -r agent-skills/clams .agents/skills/clams
+```
+
+The `~/.agents/skills/` path is the [cross-client convention](https://agentskills.io/client-implementation/adding-skills-support) — any agent that supports the Agent Skills spec will discover it there.
 
 ## Privacy
 
