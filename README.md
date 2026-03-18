@@ -21,7 +21,7 @@ This skill sends your prompts and Clams CLI output to whichever AI model your ag
 
 **Do not use this skill with a hosted model if you are not comfortable with that.**
 
-If privacy is a concern, use this skill with a local model running entirely on your hardware (e.g. via Ollama, llama.cpp, or similar). With a local model, nothing leaves your machine. NOTE - the performance will be a lot slower and will make a lot more mistakes. We have tested.
+You can run this skill with a local model (Ollama, llama.cpp, etc.) to keep everything on your machine, but in our testing local models struggle with the multi-step workflows and produce significantly worse results. The skill was designed for and tested against frontier models.
 
 ## Eval Results
 
