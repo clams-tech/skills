@@ -33,6 +33,15 @@ cp -r agent-skills/clams .agents/skills/clams
 
 The `~/.agents/skills/` path is the [cross-client convention](https://agentskills.io/client-implementation/adding-skills-support) — any agent that supports the Agent Skills spec will discover it there.
 
+## Usage
+
+Once installed, just talk to your agent naturally — "sync my connections", "generate a capital gains report for 2024", "add a new xpub connection". The skill triggers automatically when it recognises a relevant request.
+
+You can also invoke it explicitly:
+
+- **Claude Code**: `/clams`
+- **Opencode**: `/skills` → select `clams`
+
 ## Privacy
 
 This skill sends your prompts and Clams CLI output to whichever AI model your agent is connected to. If you are running a hosted model (Claude, GPT, etc.), your financial data — balances, transaction history, cost basis, gains — will leave your machine.
