@@ -4,7 +4,7 @@ An [Agent Skill](https://agentskills.io) that teaches AI coding agents how to us
 
 When installed, the skill gives your agent the knowledge to:
 
-- Set up workspaces, profiles, and connections (xpub, Lightning, custodial)
+- Set up workspaces, profiles, and connections (xpub, Lightning, custodial, etc.)
 - Sync on-chain and off-chain transaction history
 - Process journals and generate reports (balance sheet, portfolio summary, capital gains)
 - Render branded PDF and CSV exports
