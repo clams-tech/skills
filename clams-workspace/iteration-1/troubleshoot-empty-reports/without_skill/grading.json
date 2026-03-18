@@ -1,0 +1,41 @@
+{
+  "expectations": [
+    {
+      "text": "Identifies that journals need to be processed as the most likely fix (not re-syncing or other guesses)",
+      "passed": true,
+      "evidence": "Step 4 runs 'clams journals process' and correctly identifies it as the most likely root cause."
+    },
+    {
+      "text": "Does not re-sync connections when the user already said they synced yesterday",
+      "passed": false,
+      "evidence": "Step 3 runs 'clams connections sync --all' even though the user explicitly said they synced yesterday. Wastes time and bandwidth."
+    },
+    {
+      "text": "Checks for quarantined events as a secondary diagnostic",
+      "passed": true,
+      "evidence": "Step 5: clams journals quarantined"
+    },
+    {
+      "text": "Creates a business expense tag and applies it to events",
+      "passed": true,
+      "evidence": "Step 8 creates tag, Step 10 applies it to events."
+    },
+    {
+      "text": "Re-processes journals after applying tags so reports reflect the changes",
+      "passed": true,
+      "evidence": "Step 12: clams journals process"
+    },
+    {
+      "text": "The workflow ends with the user seeing a working balance sheet",
+      "passed": true,
+      "evidence": "Step 6: clams reports balance-sheet"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.83
+  },
+  "timing": {"total_duration_seconds": 90.1}
+}

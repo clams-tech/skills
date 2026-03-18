@@ -1,12 +1,11 @@
 ---
 name: clams
 description: >
-  Use this skill when the user wants to do bookkeeping, accounting,
-  or tax reporting for Bitcoin and Lightning. This includes tracking
-  cost basis, generating capital gains reports, viewing balances, and
-  managing journal entries. Applies even if they don't mention "Clams"
-  directly — any request about BTC profit/loss, tax reports, portfolio
-  value, cost basis tracking, or bitcoin accounting should use this skill.
+  Use this skill when the user wants to manage Bitcoin or Lightning
+  wallets, track cost basis, generate tax reports, or view balances
+  and capital gains. Applies even if they don't mention "Clams" directly
+  — any request about BTC holdings, profit/loss, portfolio value,
+  UTXO tracking, or bitcoin accounting should use this skill.
 metadata:
   author: Clams
   version: 1.0.0-beta.8
@@ -21,7 +20,7 @@ metadata:
 5. **For CSV reports**: use `--format csv --output <path>` on the report command itself (capital gains and journal entries only)
 6. **Never** summarize or reformat amounts from CLI output — use render scripts, `--format plain`, or `--format csv` to let the CLI format them
 7. **There is no `clams reports export` command** — PDF and CSV are produced as described above
-8. **On errors**: read the error JSON (`code` and `message` fields) before diagnosing — do not guess the cause. If the error isn't clear, retry the command with `--debug` for more detailed output
+8. **On errors**: read the error JSON (`code` and `message` fields) before diagnosing — do not guess the cause
 
 ## Gotchas
 
@@ -52,7 +51,6 @@ workspace → profile → connections → journals → reports
 |---|---|
 | Log in, create workspace/profile, configure settings, set up onchain source | [onboarding.md](references/onboarding.md) |
 | Add wallets, list/update/delete connections, sync, import CSV/JSON | [connections.md](references/connections.md) |
-| Import exchange CSV via custom mapping (csv_mapping), custom connections | [custom-connections.md](references/custom-connections.md) |
 | Process journals, inspect quarantine, resolve quarantined events | [journal-processing.md](references/journal-processing.md) |
 | Add notes, tags, exclusions, rate overrides, or account adjustments | [metadata.md](references/metadata.md) |
 | Generate balance sheet, portfolio summary, capital gains, journal entries | [reports.md](references/reports.md) |

@@ -71,14 +71,6 @@ View current settings:
 clams profiles get
 ```
 
-## 6b. Sync Exchange Rates
-
-After configuring fiat currency, sync the rate cache so reports have exchange rate data:
-
-```bash
-clams rates sync
-```
-
 ## 7. Create Onchain Source (Required for On-Chain Wallets)
 
 If the user needs on-chain wallet tracking (`XPub`, `Descriptor`, or `Address` connections), create an onchain data source first:

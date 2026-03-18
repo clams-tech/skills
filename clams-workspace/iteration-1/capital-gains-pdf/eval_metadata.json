@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "capital-gains-pdf",
+  "prompt": "I need my 2025 capital gains report as a PDF for my accountant. Save it to ~/Desktop/capital-gains-2025.pdf. I'm already set up with wallets synced and journals processed.",
+  "assertions": [
+    {"id": "correct-date-range", "text": "Uses the full 2025 calendar year (Jan 1 to Dec 31)"},
+    {"id": "pdf-at-correct-path", "text": "Produces a PDF file at ~/Desktop/capital-gains-2025.pdf"},
+    {"id": "no-amount-corruption", "text": "Does not manually parse or display raw millisatoshi values from JSON — amounts are either handled by CLI formatting or a rendering tool"},
+    {"id": "works-without-manual-intervention", "text": "The workflow would succeed without the user needing to install dependencies, write code, or intervene manually"},
+    {"id": "single-workflow", "text": "Gets the job done in a clean, straightforward workflow (not a multi-step workaround with temp files and cleanup)"}
+  ]
+}

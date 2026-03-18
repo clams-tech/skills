@@ -1,0 +1,14 @@
+{
+  "expectations": [
+    {"text": "Handles login, workspace creation, and profile setup since user didn't say they're already set up", "passed": true, "evidence": "Steps 1-4: verify-state.sh, clams login, workspaces create, profiles create, context set."},
+    {"text": "Creates an onchain source (Electrum or Esplora) for the XPub connection even though user didn't mention one", "passed": true, "evidence": "Step 7: `clams onchain create --label blockstream --kind Esplora --url https://blockstream.info/api --select`"},
+    {"text": "Creates XPub connection with correct configuration including the user's xpub", "passed": true, "evidence": "Step 8: Full config with xpub, bech32, gap_limit 20, wallet_first_tx_block_height 1, bitcoin network."},
+    {"text": "Creates LND connection with LNC transport and the user's pairing phrase", "passed": true, "evidence": "Step 9: `--kind Lnd --configuration '{\"transport\": \"lnc\", \"config\": {\"pairing_phrase\": \"uncle obvious bean...\"}}'`"},
+    {"text": "Creates Phoenix connection and imports the CSV file", "passed": true, "evidence": "Step 10: `--kind Phoenix`, Step 12: `clams connections import --label phoenix --input-format csv --file ~/Downloads/phoenix-export.csv`"},
+    {"text": "Syncs connections (individually or with --all) after creating them", "passed": true, "evidence": "Steps 11: syncs coldcard and lnd-node individually, also shows `--all` alternative."},
+    {"text": "Runs clams journals process after syncing", "passed": true, "evidence": "Step 13: `clams journals process --machine --format json`"},
+    {"text": "Shows portfolio summary with USD fiat valuation (requires rate sync and fiat currency config)", "passed": true, "evidence": "Step 5: profiles set --fiat-currency USD, Step 6: rates sync, Step 15: portfolio-summary --format plain."}
+  ],
+  "summary": {"passed": 8, "failed": 0, "total": 8, "pass_rate": 1.0},
+  "timing": {"total_tokens": 24898, "duration_ms": 72007, "total_duration_seconds": 72.0}
+}

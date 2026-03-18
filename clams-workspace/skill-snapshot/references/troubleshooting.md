@@ -2,8 +2,6 @@
 
 All CLI errors in `--machine --format json` mode return structured JSON with `code` and `message` fields. **Always read the actual error output** before diagnosing — do not guess the cause from the symptom alone.
 
-When a command fails and the error JSON doesn't give enough context, re-run with `--debug` appended to get verbose diagnostic output.
-
 Start with the symptom, run the diagnostic commands, and follow the branch that matches.
 
 ## Quick State Check
@@ -28,7 +26,7 @@ clams journals events list --limit 1 --machine --format json
 
 ### → No events returned (empty array)
 
-Journals haven't been processed. If the user confirms they already synced, skip re-syncing — the most likely cause is that `clams journals process` was never run afterward.
+Journals haven't been processed.
 
 ```bash
 clams journals process --machine --format json

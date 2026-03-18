@@ -1,0 +1,13 @@
+{
+  "eval_id": 1,
+  "eval_name": "onboarding-xpub-wallet",
+  "prompt": "I just installed Clams and I want to track my Bitcoin cold storage. I have an xpub from my Coldcard: `xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz`. My Electrum server is at `ssl://electrum.blockstream.info:50002`. Help me get set up and see my balance.",
+  "assertions": [
+    {"id": "no-broken-commands", "text": "Every command in the workflow would actually succeed if run (no interactive-only commands in automated context, no server-admin commands, no missing required flags)"},
+    {"id": "onchain-before-xpub", "text": "Configures the Electrum onchain source before creating the XPub connection (required dependency)"},
+    {"id": "complete-xpub-config", "text": "XPub connection configuration includes address_types, gap_limit, and network fields (not just the bare xpub key)"},
+    {"id": "processes-before-report", "text": "Runs journals process after sync and before generating any report"},
+    {"id": "user-sees-balance", "text": "The workflow ends with the user seeing their balance (balance sheet or portfolio summary)"},
+    {"id": "parseable-output", "text": "Commands whose output feeds into subsequent steps use --machine --format json so the output can be reliably parsed"}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text": "Generates capital gains as PDF using render-capital-gains.sh with --machine --format json pipe", "passed": true, "evidence": "Command 1: `clams reports capital-gains ... --machine --format json | scripts/render-capital-gains.sh --pdf ~/Desktop/capital-gains-2025.pdf`"},
+    {"text": "Uses 2025 date range (2025-01-01T00:00:00Z to 2025-12-31T23:59:59Z) for capital gains", "passed": true, "evidence": "`--start 2025-01-01T00:00:00Z --end 2025-12-31T23:59:59Z`"},
+    {"text": "Exports journal entries as CSV using clams reports journal-entries --format csv --output", "passed": true, "evidence": "Command 2: `clams reports journal-entries --format csv --output ~/Desktop/journal-entries-2025.csv`"},
+    {"text": "Generates balance sheet as PDF using render-balance-sheet.sh with --machine --format json pipe", "passed": true, "evidence": "Command 3: `clams reports balance-sheet --machine --format json | scripts/render-balance-sheet.sh --pdf ~/Desktop/balance-sheet-2025.pdf`"},
+    {"text": "Does not attempt to manually parse or display JSON amounts — uses render scripts for PDFs and --format csv for CSV", "passed": true, "evidence": "All formatting handled by render scripts and CSV export. No manual amount parsing."},
+    {"text": "Produces all three requested outputs: capital gains PDF, journal entries CSV, and balance sheet PDF", "passed": true, "evidence": "Three commands produce three files: capital-gains-2025.pdf, journal-entries-2025.csv, balance-sheet-2025.pdf."}
+  ],
+  "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0},
+  "timing": {"total_tokens": 13375, "duration_ms": 31567, "total_duration_seconds": 31.6}
+}

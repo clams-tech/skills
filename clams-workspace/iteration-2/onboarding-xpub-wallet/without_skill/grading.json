@@ -1,0 +1,69 @@
+{
+  "expectations": [
+    {
+      "text": "Runs clams login or checks clams status as the first step",
+      "passed": false,
+      "evidence": "Step 1 runs `clams init --workspace-label \"cold-storage\" --profile-label \"coldcard\"` which bundles login inside it. However, clams init is interactive — it blocks waiting for stdin in a non-interactive context. The agent does not run clams login or clams status independently."
+    },
+    {
+      "text": "Runs clams workspaces create with a label",
+      "passed": false,
+      "evidence": "The agent relies on `clams init` to create the workspace implicitly. It never runs `clams workspaces create` as a standalone command. Since clams init hangs in non-interactive contexts, workspace creation would not succeed."
+    },
+    {
+      "text": "Runs clams profiles create with workspace ID",
+      "passed": false,
+      "evidence": "Same as above — profile creation is bundled inside `clams init` which would hang. No standalone `clams profiles create` command."
+    },
+    {
+      "text": "Runs clams context set to set the default profile",
+      "passed": true,
+      "evidence": "Step 2 runs `clams context current` to verify, and notes: 'If for any reason the context was not set automatically, set it explicitly: clams context set --profile coldcard'"
+    },
+    {
+      "text": "Runs clams onchain create with --kind Electrum and the user's server URL",
+      "passed": true,
+      "evidence": "Step 3: `clams onchain create --label \"blockstream-electrum\" --kind Electrum --url \"ssl://electrum.blockstream.info:50002\" --select`"
+    },
+    {
+      "text": "Runs clams connections create --kind XPub with the user's xpub",
+      "passed": true,
+      "evidence": "Step 4: `clams connections create --label \"coldcard-xpub\" --kind XPub --configuration '{\"xpub\":\"xpub6CUG...\"}'`. Note: configuration only includes xpub field — missing address_types, gap_limit, network, wallet_first_tx_block_height."
+    },
+    {
+      "text": "Runs clams connections sync after creating the connection",
+      "passed": true,
+      "evidence": "Step 5: `clams connections sync --label \"coldcard-xpub\"`"
+    },
+    {
+      "text": "Runs clams journals process after syncing",
+      "passed": true,
+      "evidence": "Step 6: `clams journals process`"
+    },
+    {
+      "text": "Runs clams reports balance-sheet to show the user their balance",
+      "passed": true,
+      "evidence": "Step 7a: `clams reports balance-sheet` and Step 7b: `clams reports portfolio-summary`"
+    },
+    {
+      "text": "Commands that need parsed output use --machine --format json",
+      "passed": false,
+      "evidence": "No commands use --machine --format json. All commands are run in default human-readable mode. This means outputs cannot be reliably parsed by the agent if it needed to extract IDs or check results programmatically."
+    }
+  ],
+  "summary": {
+    "passed": 6,
+    "failed": 4,
+    "total": 10,
+    "pass_rate": 0.6
+  },
+  "timing": {
+    "total_tokens": 32226,
+    "duration_ms": 88953,
+    "total_duration_seconds": 89.0
+  },
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "The without-skill agent chose `clams init` which is interactive and would hang. It also provides minimal XPub configuration and doesn't use --machine --format json for parseable output."
+  }
+}

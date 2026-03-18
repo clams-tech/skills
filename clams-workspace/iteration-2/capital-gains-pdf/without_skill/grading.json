@@ -1,0 +1,49 @@
+{
+  "expectations": [
+    {
+      "text": "Pipes output through scripts/render-capital-gains.sh rather than writing custom rendering code",
+      "passed": false,
+      "evidence": "The agent states 'The clams CLI does not support PDF as a native output format' and writes a 30+ line custom Python script using fpdf2 to convert CSV to PDF. It also offers pandoc and LibreOffice alternatives. It never uses or references scripts/render-capital-gains.sh because that script is part of the skill, not the CLI."
+    },
+    {
+      "text": "Uses start date 2025-01-01T00:00:00Z and end date 2025-12-31T23:59:59Z",
+      "passed": true,
+      "evidence": "Step 1: `clams reports capital-gains --start 2025-01-01T00:00:00Z --end 2025-12-31T23:59:59Z`"
+    },
+    {
+      "text": "Saves the PDF to ~/Desktop/capital-gains-2025.pdf",
+      "passed": true,
+      "evidence": "The Python script outputs to `$HOME/Desktop/capital-gains-2025.pdf` and the agent confirms the path."
+    },
+    {
+      "text": "Does not attempt to parse, convert, or display millisatoshi amounts from raw JSON",
+      "passed": true,
+      "evidence": "The agent exports to CSV format first (`--format csv`), then converts CSV to PDF. It does not parse raw JSON amounts. However, the CSV approach means amounts are in whatever format the CLI's CSV exporter uses."
+    },
+    {
+      "text": "Uses --machine --format json when piping to the render script",
+      "passed": false,
+      "evidence": "The agent uses `--format csv` instead. No render script is used, so --machine --format json is not applicable to this workflow. The agent's approach is CSV-based rather than JSON-pipe-based."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 2,
+    "total": 5,
+    "pass_rate": 0.6
+  },
+  "timing": {
+    "total_tokens": 17287,
+    "duration_ms": 75762,
+    "total_duration_seconds": 75.8
+  },
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Pipes output through scripts/render-capital-gains.sh rather than writing custom rendering code",
+        "reason": "This assertion inherently favors the with-skill run since the render script IS part of the skill. The without-skill agent can't be expected to know about it. The assertion still validly measures skill value — the skill provides a superior workflow — but it's not a fair test of the baseline agent's competence."
+      }
+    ],
+    "overall": "Two failures are expected: without the skill, the agent has no access to the render script and must improvise. The custom Python approach works but is fragile, verbose, and truncates cell values at 20 chars."
+  }
+}

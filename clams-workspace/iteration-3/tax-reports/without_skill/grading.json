@@ -1,0 +1,12 @@
+{
+  "expectations": [
+    {"text": "Generates capital gains as PDF using render-capital-gains.sh with --machine --format json pipe", "passed": false, "evidence": "Exports as plain text then converts to PDF using cupsfilter. No knowledge of render-capital-gains.sh."},
+    {"text": "Uses 2025 date range (2025-01-01T00:00:00Z to 2025-12-31T23:59:59Z) for capital gains", "passed": true, "evidence": "`--start 2025-01-01T00:00:00Z --end 2025-12-31T23:59:59Z`"},
+    {"text": "Exports journal entries as CSV using clams reports journal-entries --format csv --output", "passed": true, "evidence": "Step 2: `clams reports journal-entries --format csv --output ~/Desktop/journal-entries-2025.csv`"},
+    {"text": "Generates balance sheet as PDF using render-balance-sheet.sh with --machine --format json pipe", "passed": false, "evidence": "Uses `--format plain --no-pager > file.txt` then cupsfilter. No knowledge of render-balance-sheet.sh."},
+    {"text": "Does not attempt to manually parse or display JSON amounts — uses render scripts for PDFs and --format csv for CSV", "passed": true, "evidence": "Uses plain text export and cupsfilter, not JSON parsing. CSV export is correct."},
+    {"text": "Produces all three requested outputs: capital gains PDF, journal entries CSV, and balance sheet PDF", "passed": true, "evidence": "Produces all three files via plain-text-to-PDF conversion workflow."}
+  ],
+  "summary": {"passed": 4, "failed": 2, "total": 6, "pass_rate": 0.67},
+  "timing": {"total_tokens": 17751, "duration_ms": 61927, "total_duration_seconds": 61.9}
+}

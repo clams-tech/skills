@@ -1,0 +1,172 @@
+{
+  "metadata": {
+    "skill_name": "clams",
+    "skill_path": "/Users/john/Repos/clams/agent-skills/clams",
+    "executor_model": "claude-opus-4-6",
+    "timestamp": "2026-03-18T00:00:00Z",
+    "evals_run": [1, 2, 3, 4, 5],
+    "runs_per_configuration": 1,
+    "notes": "Iteration 4: Reran eval 5 after adding references/custom-connections.md with csv_mapping spec. Evals 1-4 carried forward from iteration 3."
+  },
+  "runs": [
+    {
+      "eval_id": 1, "eval_name": "onboarding-xpub-wallet", "configuration": "with_skill", "run_number": 1,
+      "result": {"pass_rate": 1.0, "passed": 10, "failed": 0, "total": 10, "time_seconds": 63.5, "tokens": 23027, "tool_calls": 10, "errors": 0},
+      "expectations": [
+        {"text": "Runs clams login or checks clams status as the first step", "passed": true, "evidence": "Step 1: clams status --machine --format json"},
+        {"text": "Runs clams workspaces create with a label", "passed": true, "evidence": "Step 3: clams workspaces create --label \"My Bitcoin\""},
+        {"text": "Runs clams profiles create with workspace ID", "passed": true, "evidence": "Step 4: clams profiles create --workspace <ID>"},
+        {"text": "Runs clams context set to set the default profile", "passed": true, "evidence": "Step 5: clams context set --profile \"Cold Storage\""},
+        {"text": "Runs clams onchain create with --kind Electrum and the user's server URL", "passed": true, "evidence": "Step 7: --kind Electrum --url ssl://electrum.blockstream.info:50002"},
+        {"text": "Runs clams connections create --kind XPub with the user's xpub", "passed": true, "evidence": "Step 8: Full XPub config"},
+        {"text": "Runs clams connections sync after creating the connection", "passed": true, "evidence": "Step 9: connections sync"},
+        {"text": "Runs clams journals process after syncing", "passed": true, "evidence": "Step 10: journals process"},
+        {"text": "Runs clams reports balance-sheet to show the user their balance", "passed": true, "evidence": "Step 12: balance-sheet --format plain"},
+        {"text": "Commands that need parsed output use --machine --format json", "passed": true, "evidence": "All programmatic commands use --machine --format json"}
+      ]
+    },
+    {
+      "eval_id": 1, "eval_name": "onboarding-xpub-wallet", "configuration": "without_skill", "run_number": 1,
+      "result": {"pass_rate": 0.6, "passed": 6, "failed": 4, "total": 10, "time_seconds": 84.6, "tokens": 29327, "tool_calls": 21, "errors": 0},
+      "expectations": [
+        {"text": "Runs clams login or checks clams status as the first step", "passed": false, "evidence": "Uses clams init (interactive, blocks on stdin)"},
+        {"text": "Runs clams workspaces create with a label", "passed": false, "evidence": "Bundled inside clams init"},
+        {"text": "Runs clams profiles create with workspace ID", "passed": false, "evidence": "Bundled inside clams init"},
+        {"text": "Runs clams context set to set the default profile", "passed": true, "evidence": "Fallback: clams context set --profile"},
+        {"text": "Runs clams onchain create with --kind Electrum and the user's server URL", "passed": true, "evidence": "Step 3: onchain create --kind Electrum"},
+        {"text": "Runs clams connections create --kind XPub with the user's xpub", "passed": true, "evidence": "Step 4: XPub with correct config"},
+        {"text": "Runs clams connections sync after creating the connection", "passed": true, "evidence": "Step 5: connections sync"},
+        {"text": "Runs clams journals process after syncing", "passed": true, "evidence": "Step 6: journals process"},
+        {"text": "Runs clams reports balance-sheet to show the user their balance", "passed": true, "evidence": "Step 7: balance-sheet"},
+        {"text": "Commands that need parsed output use --machine --format json", "passed": false, "evidence": "No commands use --machine --format json"}
+      ]
+    },
+    {
+      "eval_id": 2, "eval_name": "capital-gains-pdf", "configuration": "with_skill", "run_number": 1,
+      "result": {"pass_rate": 1.0, "passed": 5, "failed": 0, "total": 5, "time_seconds": 34.2, "tokens": 13376, "tool_calls": 5, "errors": 0},
+      "expectations": [
+        {"text": "Pipes output through scripts/render-capital-gains.sh", "passed": true, "evidence": "Single pipeline with render script"},
+        {"text": "Uses correct 2025 date range", "passed": true, "evidence": "2025-01-01 to 2025-12-31"},
+        {"text": "Saves PDF to ~/Desktop/capital-gains-2025.pdf", "passed": true, "evidence": "--pdf ~/Desktop/capital-gains-2025.pdf"},
+        {"text": "No manual amount formatting", "passed": true, "evidence": "Render script handles all formatting"},
+        {"text": "Uses --machine --format json for pipe", "passed": true, "evidence": "--machine --format json before pipe"}
+      ]
+    },
+    {
+      "eval_id": 2, "eval_name": "capital-gains-pdf", "configuration": "without_skill", "run_number": 1,
+      "result": {"pass_rate": 0.6, "passed": 3, "failed": 2, "total": 5, "time_seconds": 53.5, "tokens": 15072, "tool_calls": 5, "errors": 0},
+      "expectations": [
+        {"text": "Pipes output through scripts/render-capital-gains.sh", "passed": false, "evidence": "CSV export + cupsfilter conversion"},
+        {"text": "Uses correct 2025 date range", "passed": true, "evidence": "2025-01-01 to 2025-12-31"},
+        {"text": "Saves PDF to ~/Desktop/capital-gains-2025.pdf", "passed": true, "evidence": "Via cupsfilter conversion"},
+        {"text": "No manual amount formatting", "passed": true, "evidence": "Uses CSV, no JSON parsing"},
+        {"text": "Uses --machine --format json for pipe", "passed": false, "evidence": "Uses --format csv, no JSON pipe"}
+      ]
+    },
+    {
+      "eval_id": 3, "eval_name": "multi-connection-portfolio", "configuration": "with_skill", "run_number": 1,
+      "result": {"pass_rate": 1.0, "passed": 8, "failed": 0, "total": 8, "time_seconds": 72.0, "tokens": 24898, "tool_calls": 11, "errors": 0},
+      "expectations": [
+        {"text": "Handles auth and setup", "passed": true, "evidence": "login, workspaces create, profiles create, context set"},
+        {"text": "Creates onchain source for XPub", "passed": true, "evidence": "Esplora source with --select"},
+        {"text": "Creates XPub connection", "passed": true, "evidence": "Full XPub config"},
+        {"text": "Creates LND connection with LNC", "passed": true, "evidence": "Lnd kind with lnc transport"},
+        {"text": "Creates Phoenix and imports CSV", "passed": true, "evidence": "Phoenix kind + CSV import"},
+        {"text": "Syncs connections", "passed": true, "evidence": "Syncs individually + --all option"},
+        {"text": "Processes journals", "passed": true, "evidence": "journals process"},
+        {"text": "Shows portfolio in USD", "passed": true, "evidence": "fiat-currency USD + rates sync + portfolio-summary"}
+      ]
+    },
+    {
+      "eval_id": 3, "eval_name": "multi-connection-portfolio", "configuration": "without_skill", "run_number": 1,
+      "result": {"pass_rate": 0.75, "passed": 6, "failed": 2, "total": 8, "time_seconds": 98.0, "tokens": 30953, "tool_calls": 21, "errors": 0},
+      "expectations": [
+        {"text": "Handles auth and setup", "passed": false, "evidence": "Uses clams init (interactive, blocks on stdin)"},
+        {"text": "Creates onchain source for XPub", "passed": true, "evidence": "Electrum source with --select"},
+        {"text": "Creates XPub connection", "passed": true, "evidence": "XPub with correct config"},
+        {"text": "Creates LND connection with LNC", "passed": true, "evidence": "Lnd with lnc transport"},
+        {"text": "Creates Phoenix and imports CSV", "passed": true, "evidence": "Phoenix + CSV import"},
+        {"text": "Syncs connections", "passed": true, "evidence": "sync --all"},
+        {"text": "Processes journals", "passed": true, "evidence": "journals process"},
+        {"text": "Shows portfolio in USD", "passed": false, "evidence": "Sets fiat to USD but no rates sync — fiat values would be incomplete"}
+      ]
+    },
+    {
+      "eval_id": 4, "eval_name": "tax-reports", "configuration": "with_skill", "run_number": 1,
+      "result": {"pass_rate": 1.0, "passed": 6, "failed": 0, "total": 6, "time_seconds": 31.6, "tokens": 13375, "tool_calls": 5, "errors": 0},
+      "expectations": [
+        {"text": "Capital gains PDF via render script", "passed": true, "evidence": "render-capital-gains.sh pipeline"},
+        {"text": "2025 date range", "passed": true, "evidence": "2025-01-01 to 2025-12-31"},
+        {"text": "Journal entries CSV", "passed": true, "evidence": "journal-entries --format csv --output"},
+        {"text": "Balance sheet PDF via render script", "passed": true, "evidence": "render-balance-sheet.sh pipeline"},
+        {"text": "No manual formatting", "passed": true, "evidence": "Render scripts + CSV export only"},
+        {"text": "All three reports produced", "passed": true, "evidence": "3 commands, 3 files"}
+      ]
+    },
+    {
+      "eval_id": 4, "eval_name": "tax-reports", "configuration": "without_skill", "run_number": 1,
+      "result": {"pass_rate": 0.67, "passed": 4, "failed": 2, "total": 6, "time_seconds": 61.9, "tokens": 17751, "tool_calls": 9, "errors": 0},
+      "expectations": [
+        {"text": "Capital gains PDF via render script", "passed": false, "evidence": "plain text + cupsfilter"},
+        {"text": "2025 date range", "passed": true, "evidence": "2025-01-01 to 2025-12-31"},
+        {"text": "Journal entries CSV", "passed": true, "evidence": "journal-entries --format csv --output"},
+        {"text": "Balance sheet PDF via render script", "passed": false, "evidence": "plain text + cupsfilter"},
+        {"text": "No manual formatting", "passed": true, "evidence": "Plain text export, no JSON parsing"},
+        {"text": "All three reports produced", "passed": true, "evidence": "All 3 files via text-to-PDF conversion"}
+      ]
+    },
+    {
+      "eval_id": 5, "eval_name": "custom-csv-import", "configuration": "with_skill", "run_number": 1,
+      "result": {"pass_rate": 1.0, "passed": 8, "failed": 0, "total": 8, "time_seconds": 81.5, "tokens": 24398, "tool_calls": 10, "errors": 0},
+      "expectations": [
+        {"text": "Creates a connection with --kind Custom", "passed": true, "evidence": "Step 3: `clams connections create --label my-exchange --kind Custom --configuration-file mapping.json --machine --format json`"},
+        {"text": "Builds a csv_mapping JSON configuration with dialect and row_patterns", "passed": true, "evidence": "Step 2: Complete csv_mapping with dialect (delimiter, has_header) and 4 row_patterns (buy, sell, deposit, withdrawal) using correct expression syntax."},
+        {"text": "Maps Buy rows to canonical type trade (or deposit) with correct field expressions", "passed": true, "evidence": "Buy pattern: canonical_type 'trade', from_asset USD (Total), to_asset BTC (parse_decimal_sats_from_btc on Amount), fee in USD via parse_decimal_sats."},
+        {"text": "Maps Sell rows to canonical type trade (or withdrawal) with correct field expressions", "passed": true, "evidence": "Sell pattern: canonical_type 'trade', from_asset BTC, to_asset USD. Direction correctly reversed from Buy."},
+        {"text": "Maps Deposit rows to canonical type deposit", "passed": true, "evidence": "Deposit pattern: canonical_type 'deposit', amount via parse_decimal_sats_from_btc, asset BTC."},
+        {"text": "Maps Withdrawal rows to canonical type withdrawal", "passed": true, "evidence": "Withdrawal pattern: canonical_type 'withdrawal', fee handled with conditional (if Fee Asset == 'sats', convert via mul_i128_const k:1000, else none)."},
+        {"text": "Runs clams connections import with --input-format csv and the user's CSV file", "passed": true, "evidence": "Step 4: `clams connections import --label my-exchange --input-format csv --file ~/Downloads/exchange-trades.csv --machine --format json`"},
+        {"text": "Runs clams journals process after importing", "passed": true, "evidence": "Step 5: `clams journals process --machine --format json`"}
+      ]
+    },
+    {
+      "eval_id": 5, "eval_name": "custom-csv-import", "configuration": "without_skill", "run_number": 1,
+      "result": {"pass_rate": 0.75, "passed": 6, "failed": 2, "total": 8, "time_seconds": 102.9, "tokens": 30015, "tool_calls": 21, "errors": 0},
+      "expectations": [
+        {"text": "Creates a connection with --kind Custom", "passed": true, "evidence": "Step 1: `clams connections create --label my-exchange --kind Custom`"},
+        {"text": "Builds a csv_mapping JSON configuration with dialect and row_patterns", "passed": false, "evidence": "No csv_mapping. Manually creates 3 separate JSON files and imports each with different --archive-type flags. States 'A generic, unknown CSV layout cannot be imported directly'."},
+        {"text": "Maps Buy rows to canonical type trade (or deposit) with correct field expressions", "passed": true, "evidence": "Manually creates trade JSON with Buy rows, though field names are guessed (base_amount_sats, quote_amount_cents — may not match Clams schema)."},
+        {"text": "Maps Sell rows to canonical type trade (or withdrawal) with correct field expressions", "passed": true, "evidence": "Manually creates trade JSON with Sell row."},
+        {"text": "Maps Deposit rows to canonical type deposit", "passed": true, "evidence": "Creates separate deposits JSON."},
+        {"text": "Maps Withdrawal rows to canonical type withdrawal", "passed": true, "evidence": "Creates separate withdrawals JSON with fee in sats."},
+        {"text": "Runs clams connections import with --input-format csv and the user's CSV file", "passed": false, "evidence": "Imports 3 JSON files with --archive-type, not the original CSV with --input-format csv. Explicitly says CSV import won't work for unknown formats."},
+        {"text": "Runs clams journals process after importing", "passed": true, "evidence": "Step 5: `clams journals process`"}
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 56.6, "stddev": 20.2, "min": 31.6, "max": 81.5},
+      "tokens": {"mean": 19815, "stddev": 5293, "min": 13375, "max": 24898}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.67, "stddev": 0.07, "min": 0.6, "max": 0.75},
+      "time_seconds": {"mean": 80.2, "stddev": 19.5, "min": 53.5, "max": 102.9},
+      "tokens": {"mean": 24624, "stddev": 6779, "min": 15072, "max": 30953}
+    },
+    "delta": {
+      "pass_rate": "+0.33",
+      "time_seconds": "-23.6",
+      "tokens": "-4809"
+    }
+  },
+  "notes": [
+    "With-skill: 100% pass rate across all 5 evals (up from 95% in iteration 3). Without-skill: 67% avg. Skill adds +33pp while being faster (-23.6s) and using fewer tokens (-4.8k).",
+    "Eval 5 (custom CSV import) was the key improvement this iteration: with-skill went from 75% → 100% after adding references/custom-connections.md with the csv_mapping spec.",
+    "The with-skill agent correctly built a csv_mapping JSON with dialect, 4 row_patterns, conditional fee handling, and imported the original CSV directly via --input-format csv.",
+    "The without-skill baseline explicitly stated 'A generic, unknown CSV layout cannot be imported directly' and fell back to manual JSON transform — a fundamentally different (and worse) workflow.",
+    "All 5 evals now show clear with-skill advantage. No tied results remain.",
+    "Consistent without-skill failure patterns: uses clams init (interactive), no --machine --format json, no render scripts, no rates sync, no csv_mapping knowledge."
+  ]
+}

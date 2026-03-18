@@ -1,0 +1,14 @@
+{
+  "expectations": [
+    {"text": "Handles login, workspace creation, and profile setup since user didn't say they're already set up", "passed": false, "evidence": "Step 1 uses `clams init` which is interactive and blocks on stdin. Does not run login/workspaces create/profiles create independently."},
+    {"text": "Creates an onchain source (Electrum or Esplora) for the XPub connection even though user didn't mention one", "passed": true, "evidence": "Step 3: `clams onchain create --label electrum-public --kind Electrum --url ssl://electrum.blockstream.info:50002 --select`"},
+    {"text": "Creates XPub connection with correct configuration including the user's xpub", "passed": true, "evidence": "Step 4: XPub with xpub, bech32, gap_limit 20, bitcoin network."},
+    {"text": "Creates LND connection with LNC transport and the user's pairing phrase", "passed": true, "evidence": "Step 5: `--kind Lnd --configuration '{\"transport\": \"lnc\", \"config\": {\"pairing_phrase\": \"uncle obvious bean...\"}}'`"},
+    {"text": "Creates Phoenix connection and imports the CSV file", "passed": true, "evidence": "Step 6a: `--kind Phoenix`, Step 6b: `clams connections import --label phoenix --input-format csv --file ~/Downloads/phoenix-export.csv`"},
+    {"text": "Syncs connections (individually or with --all) after creating them", "passed": true, "evidence": "Step 7: `clams connections sync --all`"},
+    {"text": "Runs clams journals process after syncing", "passed": true, "evidence": "Step 9: `clams journals process`"},
+    {"text": "Shows portfolio summary with USD fiat valuation (requires rate sync and fiat currency config)", "passed": false, "evidence": "Step 2 sets fiat to USD but no `clams rates sync` — rate cache may be empty, causing fiat values to be missing or zero. Step 10 runs portfolio-summary but without rate data the USD values would be incomplete."}
+  ],
+  "summary": {"passed": 6, "failed": 2, "total": 8, "pass_rate": 0.75},
+  "timing": {"total_tokens": 30953, "duration_ms": 97974, "total_duration_seconds": 98.0}
+}

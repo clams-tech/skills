@@ -1,0 +1,15 @@
+{
+  "eval_id": 3,
+  "eval_name": "multi-connection-portfolio",
+  "prompt": "I have three Bitcoin sources: an xpub from my Coldcard, an LND node via LNC, and a Phoenix wallet CSV export. Get all three connected and show me my consolidated portfolio in USD.",
+  "assertions": [
+    {"id": "handles-auth-and-setup", "text": "Handles login, workspace creation, and profile setup since user didn't say they're already set up"},
+    {"id": "creates-onchain-source", "text": "Creates an onchain source (Electrum or Esplora) for the XPub connection even though user didn't mention one"},
+    {"id": "creates-xpub-connection", "text": "Creates XPub connection with correct configuration including the user's xpub"},
+    {"id": "creates-lnd-connection", "text": "Creates LND connection with LNC transport and the user's pairing phrase"},
+    {"id": "creates-phoenix-connection", "text": "Creates Phoenix connection and imports the CSV file"},
+    {"id": "syncs-all-connections", "text": "Syncs connections (individually or with --all) after creating them"},
+    {"id": "processes-journals", "text": "Runs clams journals process after syncing"},
+    {"id": "shows-portfolio-in-usd", "text": "Shows portfolio summary with USD fiat valuation (requires rate sync and fiat currency config)"}
+  ]
+}

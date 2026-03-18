@@ -1,0 +1,36 @@
+{
+  "expectations": [
+    {
+      "text": "Uses the full 2025 calendar year (Jan 1 to Dec 31)",
+      "passed": true,
+      "evidence": "--start 2025-01-01T00:00:00Z --end 2025-12-31T23:59:59Z"
+    },
+    {
+      "text": "Produces a PDF file at ~/Desktop/capital-gains-2025.pdf",
+      "passed": true,
+      "evidence": "Pipeline outputs to ~/Desktop/capital-gains-2025.pdf via render script."
+    },
+    {
+      "text": "Does not manually parse or display raw millisatoshi values from JSON — amounts are either handled by CLI formatting or a rendering tool",
+      "passed": true,
+      "evidence": "JSON piped directly to render script which handles all amount formatting internally."
+    },
+    {
+      "text": "The workflow would succeed without the user needing to install dependencies, write code, or intervene manually",
+      "passed": true,
+      "evidence": "Single pipeline command. Render script uses jq and weasyprint which are skill dependencies, not ad-hoc installs."
+    },
+    {
+      "text": "Gets the job done in a clean, straightforward workflow (not a multi-step workaround with temp files and cleanup)",
+      "passed": true,
+      "evidence": "One command: clams reports capital-gains ... | scripts/render-capital-gains.sh --pdf ~/Desktop/capital-gains-2025.pdf"
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  },
+  "timing": {"total_duration_seconds": 44.1}
+}

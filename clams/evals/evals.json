@@ -1,0 +1,82 @@
+{
+  "skill_name": "clams",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I just installed Clams and I want to track my Bitcoin cold storage. I have an xpub from my Coldcard: `xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz`. My Electrum server is at `ssl://electrum.blockstream.info:50002`. Help me get set up and see my balance.",
+      "expected_output": "Correct onboarding sequence: login, workspace, profile, context, onchain source, xpub connection, sync, process journals, balance sheet",
+      "files": [],
+      "assertions": [
+        {"id": "correct-login-step", "text": "Runs clams login or checks clams status as the first step"},
+        {"id": "creates-workspace", "text": "Runs clams workspaces create with a label"},
+        {"id": "creates-profile", "text": "Runs clams profiles create with workspace ID"},
+        {"id": "sets-context", "text": "Runs clams context set to set the default profile"},
+        {"id": "creates-onchain-source", "text": "Runs clams onchain create with --kind Electrum and the user's server URL"},
+        {"id": "creates-xpub-connection", "text": "Runs clams connections create --kind XPub with the user's xpub"},
+        {"id": "syncs-after-connection", "text": "Runs clams connections sync after creating the connection"},
+        {"id": "processes-journals", "text": "Runs clams journals process after syncing"},
+        {"id": "shows-balance", "text": "Runs clams reports balance-sheet to show the user their balance"},
+        {"id": "uses-machine-flag", "text": "Commands that need parsed output use --machine --format json"}
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "I need my 2025 capital gains report as a PDF for my accountant. Save it to ~/Desktop/capital-gains-2025.pdf. I'm already set up with wallets synced and journals processed.",
+      "expected_output": "Uses render-capital-gains.sh with correct date range, does not try to manually format amounts or create custom scripts",
+      "files": [],
+      "assertions": [
+        {"id": "uses-render-script", "text": "Pipes output through scripts/render-capital-gains.sh rather than writing custom rendering code"},
+        {"id": "correct-date-range", "text": "Uses start date 2025-01-01T00:00:00Z and end date 2025-12-31T23:59:59Z"},
+        {"id": "correct-output-path", "text": "Saves the PDF to ~/Desktop/capital-gains-2025.pdf"},
+        {"id": "no-manual-amount-formatting", "text": "Does not attempt to parse, convert, or display millisatoshi amounts from raw JSON"},
+        {"id": "uses-machine-json-for-pdf", "text": "Uses --machine --format json when piping to the render script"}
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "I have three Bitcoin sources: an xpub from my Coldcard (`xpub6CUGRUonZSQ4TWtTMmzXdrXDtypWKiKrhko4egpiMZbpiaQL2jkwSB1icqYh2cfDfVxdx4df189oLKnC5fSwqPfgyP3hooxujYzAu3fDVmz`), an LND node I connect to via LNC with pairing phrase `uncle obvious bean future drastic gossip gate exhaust media faith`, and a Phoenix wallet CSV export at `~/Downloads/phoenix-export.csv`. Get all three connected and show me my consolidated portfolio in USD.",
+      "expected_output": "Creates all 3 connection types with correct configs, sets up onchain source for xpub, syncs, processes journals, shows portfolio with fiat",
+      "files": [],
+      "assertions": [
+        {"id": "handles-auth-and-setup", "text": "Handles login, workspace creation, and profile setup since user didn't say they're already set up"},
+        {"id": "creates-onchain-source", "text": "Creates an onchain source (Electrum) for the XPub connection even though user didn't mention one"},
+        {"id": "creates-xpub-connection", "text": "Creates XPub connection with correct configuration including the user's xpub"},
+        {"id": "creates-lnd-connection", "text": "Creates LND connection with LNC transport and the user's pairing phrase"},
+        {"id": "creates-phoenix-connection", "text": "Creates Phoenix connection and imports the CSV file"},
+        {"id": "syncs-all-connections", "text": "Syncs connections (individually or with --all) after creating them"},
+        {"id": "processes-journals", "text": "Runs clams journals process after syncing"},
+        {"id": "shows-portfolio-in-usd", "text": "Shows portfolio summary with USD fiat valuation (requires rate sync and fiat currency config)"}
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Tax season — I need everything for my accountant for 2025. Capital gains as a PDF on my Desktop, journal entries as a CSV, and a balance sheet PDF too. Everything's already synced and journals are processed.",
+      "expected_output": "Generates all 3 reports using correct formats: capital gains PDF via render script, journal entries CSV, balance sheet PDF via render script",
+      "files": [],
+      "assertions": [
+        {"id": "capital-gains-pdf", "text": "Generates capital gains as PDF using render-capital-gains.sh with --machine --format json pipe"},
+        {"id": "capital-gains-date-range", "text": "Uses 2025 date range (2025-01-01T00:00:00Z to 2025-12-31T23:59:59Z) for capital gains"},
+        {"id": "journal-entries-csv", "text": "Exports journal entries as CSV using clams reports journal-entries --format csv --output"},
+        {"id": "balance-sheet-pdf", "text": "Generates balance sheet as PDF using render-balance-sheet.sh with --machine --format json pipe"},
+        {"id": "no-manual-formatting", "text": "Does not attempt to manually parse or display JSON amounts — uses render scripts for PDFs and --format csv for CSV"},
+        {"id": "all-three-reports", "text": "Produces all three requested outputs: capital gains PDF, journal entries CSV, and balance sheet PDF"}
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "I have a CSV export from my exchange at `~/Downloads/exchange-trades.csv`. Here's what the first few rows look like:\n```\nDate,Type,Asset,Amount,Price,Fee,Fee Asset,Total\n2025-01-15T10:30:00Z,Buy,BTC,0.05000000,42000.00,12.50,USD,2112.50\n2025-03-22T14:15:00Z,Sell,BTC,0.02000000,65000.00,8.75,USD,1291.25\n2025-06-01T09:00:00Z,Buy,BTC,0.10000000,38000.00,25.00,USD,3825.00\n2025-08-10T16:45:00Z,Deposit,BTC,0.50000000,,,,\n2025-11-05T11:20:00Z,Withdrawal,BTC,0.03000000,,5000,sats,\n```\nI need to get this into Clams. I'm already set up with a workspace and profile.",
+      "expected_output": "Creates a Custom connection with a csv_mapping configuration that maps the exchange CSV columns to canonical types, imports the CSV, and processes journals",
+      "files": [],
+      "assertions": [
+        {"id": "creates-custom-connection", "text": "Creates a connection with --kind Custom"},
+        {"id": "builds-csv-mapping", "text": "Builds a csv_mapping JSON configuration with dialect and row_patterns"},
+        {"id": "maps-buys-as-trades", "text": "Maps Buy rows to canonical type trade (or deposit) with correct field expressions"},
+        {"id": "maps-sells-as-trades", "text": "Maps Sell rows to canonical type trade (or withdrawal) with correct field expressions"},
+        {"id": "maps-deposits", "text": "Maps Deposit rows to canonical type deposit"},
+        {"id": "maps-withdrawals", "text": "Maps Withdrawal rows to canonical type withdrawal"},
+        {"id": "imports-csv", "text": "Runs clams connections import with --input-format csv and the user's CSV file"},
+        {"id": "processes-after-import", "text": "Runs clams journals process after importing"}
+      ]
+    }
+  ]
+}

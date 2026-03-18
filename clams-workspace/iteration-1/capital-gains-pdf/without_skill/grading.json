@@ -1,0 +1,36 @@
+{
+  "expectations": [
+    {
+      "text": "Uses the full 2025 calendar year (Jan 1 to Dec 31)",
+      "passed": true,
+      "evidence": "--start 2025-01-01T00:00:00Z --end 2025-12-31T23:59:59Z"
+    },
+    {
+      "text": "Produces a PDF file at ~/Desktop/capital-gains-2025.pdf",
+      "passed": true,
+      "evidence": "All proposed approaches target ~/Desktop/capital-gains-2025.pdf."
+    },
+    {
+      "text": "Does not manually parse or display raw millisatoshi values from JSON — amounts are either handled by CLI formatting or a rendering tool",
+      "passed": true,
+      "evidence": "Used --format csv which outputs pre-formatted amounts, then passed through to PDF. No raw JSON parsing."
+    },
+    {
+      "text": "The workflow would succeed without the user needing to install dependencies, write code, or intervene manually",
+      "passed": false,
+      "evidence": "Option A (cupsfilter) produces raw text, not a formatted report. Option B requires 'pip3 install fpdf2' and a 30-line Python script. Option C requires enscript+ps2pdf. All require user judgment or manual steps."
+    },
+    {
+      "text": "Gets the job done in a clean, straightforward workflow (not a multi-step workaround with temp files and cleanup)",
+      "passed": false,
+      "evidence": "All approaches involve: export CSV to temp file, convert with external tool, verify, clean up temp file. The 'combined pipeline' is 3 chained commands with temp file creation and deletion."
+    }
+  ],
+  "summary": {
+    "passed": 3,
+    "failed": 2,
+    "total": 5,
+    "pass_rate": 0.6
+  },
+  "timing": {"total_duration_seconds": 99.7}
+}

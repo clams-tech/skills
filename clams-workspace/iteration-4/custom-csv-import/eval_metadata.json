@@ -1,0 +1,15 @@
+{
+  "eval_id": 5,
+  "eval_name": "custom-csv-import",
+  "prompt": "I have a CSV export from an exchange that isn't natively supported by Clams. The file is at ~/Downloads/exchange-trades.csv and has these columns: Date, Type, Asset, Amount, Price, Fee, Fee Asset, Total. The Type column has values like Buy, Sell, Deposit, Withdrawal. Help me import this into Clams so I can track my cost basis.",
+  "assertions": [
+    {"id": "creates-custom-connection", "text": "Creates a connection with --kind Custom"},
+    {"id": "builds-csv-mapping", "text": "Builds a csv_mapping JSON configuration with dialect and row_patterns"},
+    {"id": "maps-buy-rows", "text": "Maps Buy rows to canonical type trade (or deposit) with correct field expressions"},
+    {"id": "maps-sell-rows", "text": "Maps Sell rows to canonical type trade (or withdrawal) with correct field expressions"},
+    {"id": "maps-deposit-rows", "text": "Maps Deposit rows to canonical type deposit"},
+    {"id": "maps-withdrawal-rows", "text": "Maps Withdrawal rows to canonical type withdrawal"},
+    {"id": "imports-csv-directly", "text": "Runs clams connections import with --input-format csv and the user's CSV file"},
+    {"id": "processes-after-import", "text": "Runs clams journals process after importing"}
+  ]
+}
