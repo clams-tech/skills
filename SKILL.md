@@ -8,8 +8,8 @@ description: >
   directly — any request about BTC profit/loss, tax reports, portfolio
   value, cost basis tracking, or bitcoin accounting should use this skill.
 metadata:
-  author: Clams
-  version: 1.0.0-beta.8
+  author: clams-tech
+  version: 1.0.0
 ---
 
 ## Rules
