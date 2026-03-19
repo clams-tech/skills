@@ -18,7 +18,8 @@ All `scripts/` paths in this skill are relative to the directory containing this
 
 ## Rules
 
-1. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
+1. **Always read the relevant reference file before running a command.** Do not guess flags or syntax — check the reference first
+2. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
 2. **Use `--format plain`** when the user wants to see report output in the terminal — display the CLI output directly, do not reformat it
 3. **Processing order**: sync → `clams journals process` → reports
 4. **For PDF reports**: pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`
