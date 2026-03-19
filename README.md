@@ -4,31 +4,29 @@ An [Agent Skill](https://agentskills.io) that teaches AI coding agents how to us
 
 The skill is organized into reference docs and bundled scripts:
 
-- [`SKILL.md`](clams/SKILL.md) — top-level routing and rules
-- [`references/`](clams/references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
-- [`scripts/`](clams/scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), plus a state verification helper
+- [`SKILL.md`](SKILL.md) — top-level routing and rules
+- [`references/`](references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
+- [`scripts/`](scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), plus a state verification helper
 
 ## Installation
 
 Requires [Clams CLI](https://clams.tech/cli/) installed and accessible on your `PATH`.
 
-### User-level (all projects)
+```bash
+npx skills add clams-tech/skills
+```
+
+### Manual install
 
 ```bash
-git clone https://github.com/clams-tech/agent-skills.git
-cp -r agent-skills/clams ~/.agents/skills/clams
+git clone https://github.com/clams-tech/skills.git
+cp -r skills ~/.agents/skills/clams
 ```
 
 Or for Claude Code specifically:
 
 ```bash
-cp -r agent-skills/clams ~/.claude/skills/clams
-```
-
-### Project-level (single repo)
-
-```bash
-cp -r agent-skills/clams .agents/skills/clams
+cp -r skills ~/.claude/skills/clams
 ```
 
 The `~/.agents/skills/` path is the [cross-client convention](https://agentskills.io/client-implementation/adding-skills-support) — any agent that supports the Agent Skills spec will discover it there.
