@@ -10,7 +10,7 @@ The skill is organized into reference docs and bundled scripts:
 
 ## Installation
 
-Requires [Clams CLI](https://clams.tech/cli/) installed and accessible on your `PATH`.
+Requires the [Clams CLI](https://clams.tech/cli/) on your `PATH`. See the link for install instructions.
 
 ```bash
 npx skills add clams-tech/skills
