@@ -8,11 +8,11 @@ The skill is organized into reference docs and bundled scripts:
 - [`references/`](references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
 - [`scripts/`](scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), plus a state verification helper
 
+## Prerequisites
+
+- [Clams CLI](https://clams.tech/cli/) installed and on your `PATH`
+
 ## Installation
-
-Requires the [Clams CLI](https://clams.tech/cli/) on your `PATH`. See the link for install instructions.
-
-Install the skill using the [skills](https://skills.sh) CLI:
 
 ```bash
 npx skills add clams-tech/skills
