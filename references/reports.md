@@ -9,7 +9,7 @@
 | Format | Flag | Use when |
 |---|---|---|
 | **Plain text** | `--format plain` | User wants a quick look in the terminal — show this output directly, do not reformat it |
-| **PDF** | `--machine --format json` piped to `scripts/render-*.sh --pdf <path>` | User wants a file to save, share, or print |
+| **PDF** | `--machine --format json` piped to `<skill-dir>/scripts/render-*.sh --pdf <path>` | User wants a file to save, share, or print |
 | **CSV** | `--format csv --output <path>` | User wants spreadsheet data (capital gains and journal entries only) |
 
 **Do not** use `--machine --format json` and then try to display the result yourself. Either pipe it to a render script for PDF, or use `--format plain` for terminal display.
@@ -35,7 +35,7 @@ PDF:
 
 ```bash
 clams reports balance-sheet --machine --format json \
-  | scripts/render-balance-sheet.sh --pdf <output-path>.pdf
+  | <skill-dir>/scripts/render-balance-sheet.sh --pdf <output-path>.pdf
 ```
 
 ## Portfolio Summary
@@ -50,7 +50,7 @@ PDF:
 
 ```bash
 clams reports portfolio-summary --machine --format json \
-  | scripts/render-portfolio-summary.sh --pdf <output-path>.pdf
+  | <skill-dir>/scripts/render-portfolio-summary.sh --pdf <output-path>.pdf
 ```
 
 ## Capital Gains
@@ -71,7 +71,7 @@ PDF:
 clams reports capital-gains \
   --start <YYYY-MM-DD>T00:00:00Z --end <YYYY-MM-DD>T23:59:59Z \
   --machine --format json \
-  | scripts/render-capital-gains.sh --pdf <output-path>.pdf
+  | <skill-dir>/scripts/render-capital-gains.sh --pdf <output-path>.pdf
 ```
 
 CSV:

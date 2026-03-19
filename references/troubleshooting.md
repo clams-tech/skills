@@ -11,7 +11,7 @@ Start with the symptom, run the diagnostic commands, and follow the branch that 
 Before diving into a specific symptom, run the verification script for an overview:
 
 ```bash
-scripts/verify-state.sh
+<skill-dir>/scripts/verify-state.sh
 ```
 
 If `summary.all_ok` is `true`, the issue is likely in your command arguments or date ranges, not in setup state.

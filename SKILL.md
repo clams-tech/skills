@@ -12,12 +12,16 @@ metadata:
   version: 1.0.0
 ---
 
+## Skill Directory
+
+All `scripts/` paths in this skill are relative to the directory containing this SKILL.md file. Before running any script, resolve the absolute path to this skill's directory first. For example, if this file is at `~/.claude/skills/clams/SKILL.md`, then scripts are at `~/.claude/skills/clams/scripts/`.
+
 ## Rules
 
 1. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
 2. **Use `--format plain`** when the user wants to see report output in the terminal — display the CLI output directly, do not reformat it
 3. **Processing order**: sync → `clams journals process` → reports
-4. **For PDF reports**: pipe JSON through `scripts/render-<report>.sh --pdf <path>`
+4. **For PDF reports**: pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`
 5. **For CSV reports**: use `--format csv --output <path>` on the report command itself (capital gains and journal entries only)
 6. **Never** summarize or reformat amounts from CLI output — use render scripts, `--format plain`, or `--format csv` to let the CLI format them
 7. **There is no `clams reports export` command** — PDF and CSV are produced as described above
@@ -27,7 +31,7 @@ metadata:
 
 - **Empty reports?** You forgot `clams journals process`. This must run after every sync/import and before any report. It's the #1 mistake.
 - **Amounts are in millisatoshis.** Never convert, round, summarize, or display raw JSON amounts. Always pipe through the render scripts or use `--format csv`.
-- **`clams reports export` does not exist.** For PDF, pipe JSON through `scripts/render-*.sh`. For CSV, use `--format csv --output <path>` on the report command.
+- **`clams reports export` does not exist.** For PDF, pipe JSON through `<skill-dir>/scripts/render-*.sh`. For CSV, use `--format csv --output <path>` on the report command.
 - **`clams init` is interactive-only.** It does not support `--machine` mode. Use the individual commands in [onboarding.md](references/onboarding.md) instead.
 - **`clams setup` is for server admins.** Do not use it in CLI workflows — it configures the Clams server, not the client.
 - **On-chain wallets need an onchain source first.** `XPub`, `Descriptor`, and `Address` connections will fail to sync without one. Create it during onboarding (step 7).

@@ -1,11 +1,11 @@
 # Verification: Checking CLI State
 
-Use `scripts/verify-state.sh` to confirm the CLI is ready before running workflows, or to diagnose what's wrong after unexpected results.
+Use `<skill-dir>/scripts/verify-state.sh` to confirm the CLI is ready before running workflows, or to diagnose what's wrong after unexpected results.
 
 ## Full Check
 
 ```bash
-scripts/verify-state.sh
+<skill-dir>/scripts/verify-state.sh
 ```
 
 Returns JSON with a section for each check (`auth`, `context`, `connections`, `journals`, `quarantine`) and a `summary.all_ok` boolean.
@@ -13,11 +13,11 @@ Returns JSON with a section for each check (`auth`, `context`, `connections`, `j
 ## Single Section
 
 ```bash
-scripts/verify-state.sh --section auth
-scripts/verify-state.sh --section context
-scripts/verify-state.sh --section connections
-scripts/verify-state.sh --section journals
-scripts/verify-state.sh --section quarantine
+<skill-dir>/scripts/verify-state.sh --section auth
+<skill-dir>/scripts/verify-state.sh --section context
+<skill-dir>/scripts/verify-state.sh --section connections
+<skill-dir>/scripts/verify-state.sh --section journals
+<skill-dir>/scripts/verify-state.sh --section quarantine
 ```
 
 ## When to Run
