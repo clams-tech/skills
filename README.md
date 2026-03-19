@@ -12,6 +12,8 @@ The skill is organized into reference docs and bundled scripts:
 
 Requires the [Clams CLI](https://clams.tech/cli/) on your `PATH`. See the link for install instructions.
 
+Install the skill using the [skills](https://skills.sh) CLI:
+
 ```bash
 npx skills add clams-tech/skills
 ```
