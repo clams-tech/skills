@@ -42,7 +42,7 @@ You can also invoke it explicitly:
 
 ## Privacy
 
-This skill sends your prompts and Clams CLI output to whichever AI model your agent is connected to. If you are running a hosted model (Claude, GPT, etc.), your financial data — balances, transaction history, cost basis, gains — will leave your machine.
+This skill sends your prompts and Clams CLI output to whichever AI model your agent is connected to. If you are running a hosted model (Claude, Codex, etc.), your financial data — balances, transaction history, cost basis, gains — will leave your machine.
 
 **Do not use this skill with a hosted model if you are not comfortable with that.**
 
