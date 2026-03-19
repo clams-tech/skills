@@ -45,8 +45,13 @@ JSON=$(cat)
 
 FIAT_CURRENCY=$(echo "$JSON" | jq -r '.data.fiat_currency')
 ALGORITHM=$(echo "$JSON" | jq -r '.data.algorithm')
-START_DATE=$(echo "$JSON" | jq -r '.data.range_start' | sed 's/T.*//')
-END_DATE=$(echo "$JSON" | jq -r '.data.range_end' | sed 's/T.*//')
+START_DATE=$(echo "$JSON" | jq -r '.data.range_start // empty' | sed 's/T.*//')
+END_DATE=$(echo "$JSON" | jq -r '.data.range_end // empty' | sed 's/T.*//')
+
+if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
+  echo "Error: JSON is missing range_start or range_end. Make sure you pipe the output of 'clams reports capital-gains --machine --format json'." >&2
+  exit 1
+fi
 NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
 
 # ── Summary ──
