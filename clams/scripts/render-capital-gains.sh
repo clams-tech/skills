@@ -236,7 +236,7 @@ cat <<'HTMLEOF_TOP'
   /* ── Detail grid ── */
   .details {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1.5fr;
     column-gap: 24px;
   }
   .detail {

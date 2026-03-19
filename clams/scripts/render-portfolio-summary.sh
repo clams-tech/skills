@@ -137,7 +137,7 @@ TOTAL_GAIN_SIGN=$(sign_prefix "$TOTAL_GAIN")
 # Chart: Cost Basis vs Market Value bar widths
 read -r CB_BAR_W MV_BAR_W CB_LABEL_X MV_LABEL_X MV_BAR_COLOR < <(
   awk -v cb="$UNREALIZED_COST_BASIS" -v mv="$BTC_BALANCE_FIAT" -v gain="$UNREALIZED_GAIN" 'BEGIN {
-    maxw=340; bx=110; pad=8
+    maxw=300; bx=110; pad=8
     m=(cb>mv)?cb:mv
     if (m>0) { cbw=cb/m*maxw; mvw=mv/m*maxw } else { cbw=0; mvw=0 }
     printf "%.1f %.1f %.1f %.1f %s\n", cbw, mvw, bx+cbw+pad, bx+mvw+pad, (gain>=0)?"#15803d":"#8f0709"
