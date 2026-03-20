@@ -52,6 +52,12 @@ clams journals events get <EVENT_ID>
 clams journals events get <EVENT_ID> --show-signatures
 ```
 
+For on-chain transactions, the blockchain txid is the event ID. If a user provides a txid, use it directly:
+
+```bash
+clams journals events get <TXID>
+```
+
 ## Quarantine: Inspect
 
 Quarantined events are ambiguous transactions that the journal processor could not classify automatically.

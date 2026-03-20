@@ -59,6 +59,7 @@ workspace → profile → connections → journals → reports
 | Add wallets, list/update/delete connections, sync, import CSV/JSON | [connections.md](references/connections.md) |
 | Manage onchain sources (Esplora, Electrum, Bitcoin RPC), Tor proxy | [onchain-sources.md](references/onchain-sources.md) |
 | Import exchange CSV via custom mapping (csv_mapping), custom connections | [custom-connections.md](references/custom-connections.md) |
+| Find/inspect a specific transaction by txid or event ID | [journal-processing.md](references/journal-processing.md) |
 | Process journals, inspect quarantine, resolve quarantined events | [journal-processing.md](references/journal-processing.md) |
 | Add notes, tags, exclusions, rate overrides, or account adjustments | [metadata.md](references/metadata.md) |
 | Generate balance sheet, portfolio summary, capital gains, journal entries | [reports.md](references/reports.md) |
