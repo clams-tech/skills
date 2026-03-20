@@ -20,7 +20,7 @@
 |---|---|---|---|
 | Balance Sheet | Yes | Yes | No |
 | Portfolio Summary | Yes | Yes | No |
-| Capital Gains | Yes | Yes | Yes |
+| Capital Gains | No | Yes | Yes |
 | Journal Entries | No | No | Yes |
 
 ## Balance Sheet
@@ -55,15 +55,7 @@ clams reports portfolio-summary --machine --format json \
 
 ## Capital Gains
 
-Requires `--start` and `--end` (RFC3339 UTC timestamps).
-
-Quick look:
-
-```bash
-clams reports capital-gains \
-  --start <YYYY-MM-DD>T00:00:00Z --end <YYYY-MM-DD>T23:59:59Z \
-  --format plain
-```
+Requires `--start` and `--end` (RFC3339 UTC timestamps). Does **not** support `--format plain` — use CSV for terminal display or PDF for sharing.
 
 PDF:
 
