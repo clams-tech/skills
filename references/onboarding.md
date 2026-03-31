@@ -8,19 +8,40 @@ All commands below require `--machine --format json` appended. Shown without for
 clams status
 ```
 
-If `auth.status` is not `"authenticated"`, proceed to login.
+If `auth.status` is not `"authenticated"`, proceed to onboarding.
 
-## 2. Login
+## 2. Fresh Install Onboarding
+
+On a fresh install, the CLI gates all commands behind `clams init`. Use non-interactive mode:
+
+```bash
+clams init --workspace-label default --profile-label default
+```
+
+This will open the user's browser for authentication. **Before running this command**, tell the user a browser window will open for login. Use a **5-minute timeout** since the user needs to complete browser authentication:
+
+```bash
+# Example with timeout (agent should use 300000ms / 5 minutes)
+clams init --workspace-label default --profile-label default
+```
+
+Once init completes, the user is logged in with a workspace and profile created. Proceed to step 5.
+
+**Important:** Do NOT use `clams login`, `clams workspaces create`, or `clams profiles create` as standalone commands on a fresh install. The CLI will reject them with "First run requires interactive onboarding; run `clams init`."
+
+## 3. Re-authentication (Existing Install)
+
+If the user was previously set up but their token expired:
 
 ```bash
 clams login
 ```
 
-Opens browser for authentication. Stores credentials locally. Use `clams login` again to re-authenticate if tokens expire.
+Opens browser for authentication. Use a **5-minute timeout**.
 
-`clams init` is an interactive alternative that walks through login, workspace creation, and profile creation — but it does not support `--machine` mode. Use the individual commands below for automation.
+## 4. Create Workspace (Existing Install Only)
 
-## 3. Create Workspace
+Only needed if adding a new workspace after initial setup.
 
 ```bash
 clams workspaces create --label <LABEL>
@@ -33,14 +54,6 @@ List existing workspaces:
 ```bash
 clams workspaces list
 ```
-
-## 4. Create Profile
-
-```bash
-clams profiles create --workspace <WORKSPACE_ID> --label <LABEL>
-```
-
-Returns profile ID.
 
 ## 5. Set Context (Default Workspace/Profile)
 
@@ -129,11 +142,11 @@ Clear with `--no-tor-proxy`.
 
 ## What's Next
 
-- **Add connections** → see [connections.md](connections.md)
-- **Sync and process** → see [journal-processing.md](journal-processing.md)
-- **Generate reports** → see [reports.md](reports.md)
+- **Add connections** -> see [connections.md](connections.md)
+- **Sync and process** -> see [journal-processing.md](journal-processing.md)
+- **Generate reports** -> see [reports.md](reports.md)
 
 ## Notes
 
-- `clams setup` is for **server administration only** — do NOT use it in CLI workflows.
+- `clams setup` is for **server administration only** -- do NOT use it in CLI workflows.
 - `clams login` can be used standalone if the user is already initialized but needs to re-authenticate.
