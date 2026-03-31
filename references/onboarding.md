@@ -84,34 +84,21 @@ View current settings:
 clams profiles get
 ```
 
-## 6b. Sync Exchange Rates
+## 7. Create Onchain Source
 
-After configuring fiat currency, sync the rate cache so reports have exchange rate data:
+An onchain source is required for Clams to function. All connection types (on-chain wallets, Lightning nodes, exchanges) depend on it. Always create one during onboarding.
 
-```bash
-clams rates sync
-```
-
-## 7. Create Onchain Source (Required for On-Chain Wallets)
-
-If the user needs on-chain wallet tracking (`XPub`, `Descriptor`, or `Address` connections), create an onchain data source first:
+Ask the user if they have their own Electrum server, Esplora instance, or Bitcoin Core RPC node. If they don't (or are unsure), use the public Blockstream Esplora API as the default:
 
 ```bash
-clams onchain create --label <LABEL> --kind <KIND> --url <URL> --select
+clams onchain create --label blockstream --kind Esplora --url https://blockstream.info/api --select
 ```
 
-- `--kind`: `Electrum`, `Esplora`, or `BitcoinRpc`
-- `--select`: automatically sets this source as the active onchain source in profile settings
-- For `BitcoinRpc`, add `--rpc-cookie <PATH>` or `--rpc-user <USER> --rpc-password <PASS>`
-
-Examples:
+Other examples if the user has their own infrastructure:
 
 ```bash
 # Electrum
 clams onchain create --label primary --kind Electrum --url ssl://electrum.example.invalid:50002 --select
-
-# Esplora
-clams onchain create --label blockstream --kind Esplora --url https://blockstream.info/api --select
 
 # Bitcoin Core RPC with cookie
 clams onchain create --label core-rpc --kind BitcoinRpc --url http://127.0.0.1:8332 --rpc-cookie /path/to/.cookie --select
@@ -119,6 +106,9 @@ clams onchain create --label core-rpc --kind BitcoinRpc --url http://127.0.0.1:8
 # Bitcoin Core RPC with user/pass
 clams onchain create --label core-rpc --kind BitcoinRpc --url http://127.0.0.1:8332 --rpc-user admin --rpc-password secret --select
 ```
+
+- `--select`: automatically sets this source as the active onchain source in profile settings
+- For `BitcoinRpc`, add `--rpc-cookie <PATH>` or `--rpc-user <USER> --rpc-password <PASS>`
 
 Without `--select`, manually assign the source:
 
