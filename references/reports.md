@@ -1,6 +1,8 @@
 # Reports
 
-**Prerequisite**: Journals must be processed first — see [journal-processing.md](journal-processing.md).
+**Prerequisites**:
+- Journals must be processed first — see [journal-processing.md](journal-processing.md).
+- Exchange rates must be synced (`clams rates sync`) before generating any report. Always run this if rates have not been synced since the last connection sync.
 
 **Never** summarize, convert, or display amounts from raw JSON — values are in millisatoshis and will be wrong if you try to convert them.
 
