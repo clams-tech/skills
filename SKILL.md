@@ -20,14 +20,14 @@ All `scripts/` paths in this skill are relative to the directory containing this
 
 1. **Before running any `clams` command**, source the user's shell profile to ensure PATH is set: `source ~/.zshenv 2>/dev/null; source ~/.bashrc 2>/dev/null`
 2. **Always read the relevant reference file before running a command.** Do not guess flags or syntax — check the reference first
-2. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
-2. **Use `--format plain`** when the user wants to see report output in the terminal — display the CLI output directly, do not reformat it
-3. **Processing order**: sync → `clams rates sync` → `clams journals process` → reports
-4. **For PDF reports**: pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`
-5. **For CSV reports**: use `--format csv --output <path>` on the report command itself (capital gains and journal entries only)
-6. **Never** summarize or reformat amounts from CLI output — use render scripts, `--format plain`, or `--format csv` to let the CLI format them
-7. **There is no `clams reports export` command** — PDF and CSV are produced as described above
-8. **On errors**: read the error JSON (`code` and `message` fields) before diagnosing — do not guess the cause. If the error isn't clear, retry the command with `--debug` for more detailed output
+3. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
+4. **Use `--format plain`** when the user wants to see report output in the terminal — display the CLI output directly, do not reformat it
+5. **Processing order**: sync → `clams rates sync` → `clams journals process` → reports
+6. **For PDF reports**: pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`
+7. **For CSV reports**: use `--format csv --output <path>` on the report command itself (capital gains and journal entries only)
+8. **Never** summarize or reformat amounts from CLI output — use render scripts, `--format plain`, or `--format csv` to let the CLI format them
+9. **There is no `clams reports export` command** — PDF and CSV are produced as described above
+10. **On errors**: read the error JSON (`code` and `message` fields) before diagnosing — do not guess the cause. If the error isn't clear, retry the command with `--debug` for more detailed output
 
 ## Gotchas
 
