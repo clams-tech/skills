@@ -18,7 +18,8 @@ All `scripts/` paths in this skill are relative to the directory containing this
 
 ## Rules
 
-1. **Always read the relevant reference file before running a command.** Do not guess flags or syntax — check the reference first
+1. **Before running any `clams` command**, source the user's shell profile to ensure PATH is set: `source ~/.zshenv 2>/dev/null; source ~/.bashrc 2>/dev/null`
+2. **Always read the relevant reference file before running a command.** Do not guess flags or syntax — check the reference first
 2. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
 2. **Use `--format plain`** when the user wants to see report output in the terminal — display the CLI output directly, do not reformat it
 3. **Processing order**: sync → `clams rates sync` → `clams journals process` → reports
