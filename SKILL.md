@@ -26,8 +26,9 @@ All `scripts/` paths in this skill are relative to the directory containing this
 6. **For PDF reports**: pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`
 7. **For CSV reports**: use `--format csv --output <path>` on the report command itself (capital gains and journal entries only)
 8. **Never** summarize or reformat amounts from CLI output — use render scripts, `--format plain`, or `--format csv` to let the CLI format them
-9. **There is no `clams reports export` command** — PDF and CSV are produced as described above
-10. **On errors**: read the error JSON (`code` and `message` fields) before diagnosing — do not guess the cause. If the error isn't clear, retry the command with `--debug` for more detailed output
+9. **Never perform arithmetic on financial values.** Do not sum, subtract, average, or derive new numbers from CLI output — only display values that Clams itself has calculated and formatted
+10. **There is no `clams reports export` command** — PDF and CSV are produced as described above
+11. **On errors**: read the error JSON (`code` and `message` fields) before diagnosing — do not guess the cause. If the error isn't clear, retry the command with `--debug` for more detailed output
 
 ## Gotchas
 
