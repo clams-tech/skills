@@ -37,7 +37,7 @@ All `scripts/` paths in this skill are relative to the directory containing this
 - **`clams reports export` does not exist.** For PDF, pipe JSON through `<skill-dir>/scripts/render-*.sh`. For CSV, use `--format csv --output <path>` on the report command.
 - **`clams init` is interactive-only.** It does not support `--machine` mode. Use the individual commands in [onboarding.md](references/onboarding.md) instead.
 - **`clams setup` is for server admins.** Do not use it in CLI workflows — it configures the Clams server, not the client.
-- **On-chain wallets need an onchain source first.** `XPub`, `Descriptor`, and `Address` connections will fail to sync without one. Create it during onboarding (step 7).
+- **On-chain wallets need an onchain source first.** `XPub`, `Descriptor`, and `Address` connections will fail to sync without one. Create it during onboarding (step 7). When creating these connections, auto-resolve the onchain source and network — see "Resolving Onchain Source and Network" in [connections.md](references/connections.md). Do not ask the user unless genuinely ambiguous.
 - **Re-process after metadata changes.** Notes, tags, exclusions, rate overrides, and account adjustments don't take effect until you run `clams journals process` again.
 - **Omitting `--excluded` removes the exclusion.** `clams metadata records excluded set --event-id <ID>` without the `--excluded` flag un-excludes the event — this is intentional but counterintuitive.
 - **Quarantine blocks accurate reports.** Unresolved quarantined events are omitted from reports. Always check `clams journals quarantined` if numbers look wrong.

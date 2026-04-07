@@ -38,6 +38,26 @@ Or from a file:
 clams connections create --label <LABEL> --kind <KIND> --configuration-file <PATH>
 ```
 
+### Resolving Onchain Source and Network
+
+Before creating an on-chain connection, resolve which onchain source to use and what `network` value to set. Do not ask the user unless genuinely ambiguous.
+
+1. List sources: `clams onchain list --machine --format json`
+2. **One source** → use it. No need to ask.
+3. **Multiple sources** → infer the target network from the key or address prefix, then match to a source:
+   - `xpub` / `vpub` / mainnet addresses (`bc1`, `1`, `3`) → mainnet → match sources whose label or URL indicate mainnet (e.g., `blockstream.info/api`, no `testnet`/`regtest`/`signet` in label or URL)
+   - `tpub` / testnet addresses (`tb1`, `m`, `n`, `2`) → testnet-family → match sources whose label or URL contain `regtest`, `testnet`, or `signet`
+4. **Still ambiguous** (e.g., multiple testnet-family sources) → ask the user.
+
+Set the `network` configuration field based on what the matched source serves:
+
+| Source indicator | `network` value |
+|---|---|
+| Default Esplora / mainnet URL | `"bitcoin"` |
+| Label or URL contains `regtest` | `"regtest"` |
+| Label or URL contains `testnet` | `"testnet"` |
+| Label or URL contains `signet` | `"signet"` |
+
 ### On-Chain Wallets
 
 **Descriptor**:
