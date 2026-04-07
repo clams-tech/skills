@@ -23,8 +23,8 @@ All `scripts/` paths in this skill are relative to the directory containing this
 3. **Use `--machine --format json`** for commands whose output you need to parse or pipe to a script
 4. **Use `--format plain`** when the user wants to see report output in the terminal — display the CLI output directly, do not reformat it
 5. **Processing order**: sync → `clams rates sync` → `clams journals process` → reports
-6. **For PDF reports**: pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`
-7. **For CSV reports**: use `--format csv --output <path>` on the report command itself (capital gains and journal entries only)
+6. **Default report formats**: use `--format plain` for display reports (balance sheet, balance history, portfolio summary) and `--format csv --output <path>` for data reports (capital gains, journal entries). **Only generate PDF when the user explicitly asks for it.**
+7. **For PDF reports** (only when requested): pipe JSON through `<skill-dir>/scripts/render-<report>.sh --pdf <path>`. Requires `weasyprint`.
 8. **Never** summarize or reformat amounts from CLI output — use render scripts, `--format plain`, or `--format csv` to let the CLI format them
 9. **Never perform arithmetic on financial values.** Do not sum, subtract, average, or derive new numbers from CLI output — only display values that Clams itself has calculated and formatted
 10. **There is no `clams reports export` command** — PDF and CSV are produced as described above
@@ -44,6 +44,8 @@ All `scripts/` paths in this skill are relative to the directory containing this
 - **All JSON responses are wrapped in a `data` envelope.** The shape is `{"kind": "...", "schema_version": 1, "data": ...}`. Always access `.data` to get the actual payload — lists may be at `.data` (array) or `.data.items` (paginated).
 - **`--machine` requires `--format json`.** Never combine `--machine` with `--format csv` or `--format plain` — it will error. Use `--machine --format json` for scripting, or drop `--machine` and use `--format plain` / `--format csv` directly.
 - **Not all reports support CSV.** Only capital gains and journal entries have CSV output. Balance sheet and portfolio summary support plain text and PDF only. See the format support table in [reports.md](references/reports.md).
+- **Rapid CLI calls trigger rate limiting.** Making many requests in quick succession (e.g., paginating through events) causes the backend to return empty responses. These look like auth errors but are transient. When paginating, add a 0.5 s delay between pages and retry on empty responses (up to 3 attempts with a 2 s backoff). See the pagination section in [journal-processing.md](references/journal-processing.md).
+- **Event counts can be large.** Lightning connections can have tens of thousands of events. Never assume the first page is all there is — always check `next_cursor` in the JSON response. If a user asks for a count and the first page returns a full 500 items, there are almost certainly more pages.
 
 ## Data Hierarchy
 
@@ -59,12 +61,12 @@ workspace → profile → connections → journals → reports
 |---|---|
 | Log in, create workspace/profile, configure settings, set up onchain source | [onboarding.md](references/onboarding.md) |
 | Add wallets, list/update/delete connections, sync, import CSV/JSON | [connections.md](references/connections.md) |
-| Manage onchain sources (Esplora, Electrum, Bitcoin RPC), Tor proxy | [onchain-sources.md](references/onchain-sources.md) |
+| Manage onchain sources (Esplora, Electrum, Bitcoin RPC), Tor proxy | [onchain.md](references/onchain.md) |
 | Import exchange CSV via custom mapping (csv_mapping), custom connections | [custom-connections.md](references/custom-connections.md) |
 | Find/inspect a specific transaction by txid or event ID | [journal-processing.md](references/journal-processing.md) |
 | Process journals, inspect quarantine, resolve quarantined events | [journal-processing.md](references/journal-processing.md) |
 | Add notes, tags, exclusions, rate overrides, or account adjustments | [metadata.md](references/metadata.md) |
-| Generate balance sheet, portfolio summary, capital gains, journal entries | [reports.md](references/reports.md) |
+| Generate balance sheet, balance history, portfolio summary, capital gains, journal entries | [reports.md](references/reports.md) |
 | Verify CLI readiness, check state before/after workflows | [verification.md](references/verification.md) |
 | Diagnose errors or empty results | [troubleshooting.md](references/troubleshooting.md) |
 

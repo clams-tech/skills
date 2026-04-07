@@ -30,6 +30,9 @@ clams journals events list --from 2024-01-01T00:00:00Z --to 2024-12-31T23:59:59Z
 # Filter by connection
 clams journals events list --connection <LABEL_OR_ID>
 
+# Filter by event kind (deposit, forward, invoice, pay, trade, transaction, withdrawal)
+clams journals events list --event-kind forward
+
 # Filter by tag
 clams journals events list --tag <TAG_CODE>
 
@@ -39,9 +42,39 @@ clams journals events list --note-contains "hardware"
 # Filter by account
 clams journals events list --account <ACCOUNT_LABEL_OR_ID>
 
+# Sort oldest-first (default is newest-first)
+clams journals events list --ascending
+
 # Wide output (shows accounts, tags, excluded, note preview)
 clams journals events list --wide
 ```
+
+## Pagination
+
+The `--limit` flag accepts 1–500 (default: 10). When there are more results, the JSON response includes a `next_cursor` field. Pass it back with `--cursor` to fetch the next page. When `next_cursor` is `null`, you've reached the last page.
+
+```bash
+# First page
+clams journals events list --limit 500 --connection <LABEL> --machine --format json
+
+# Next page (use next_cursor value from previous response)
+clams journals events list --limit 500 --connection <LABEL> --machine --format json \
+  --cursor <CURSOR>
+```
+
+Response shape:
+```json
+{
+  "data": {
+    "items": [...],
+    "next_cursor": "<opaque-string-or-null>"
+  }
+}
+```
+
+### Counting events
+
+There is no dedicated count endpoint. To get an exact event count, paginate through all pages and sum `len(items)` on each page. For connections with many events (tens of thousands), this requires many requests — add a 0.5 s delay between pages to avoid rate limiting (see Gotchas in SKILL.md).
 
 Get a single event:
 
