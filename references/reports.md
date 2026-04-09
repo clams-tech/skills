@@ -30,6 +30,8 @@
 
 ## Balance Sheet
 
+Current asset, liability, and equity breakdown with per-connection balances.
+
 ```bash
 # Default — display in terminal
 clams reports balance-sheet --format plain
@@ -41,7 +43,7 @@ clams reports balance-sheet --machine --format json \
 
 ## Balance History
 
-Shows balance over time with configurable interval and filters.
+Balance over time with configurable interval and filters.
 
 ```bash
 # Default — display in terminal
@@ -63,6 +65,8 @@ Intervals: `hour`, `day`, `week`, `month`.
 
 ## Portfolio Summary
 
+Net position, total value, cost basis (realized, unrealized, total), average cost basis per BTC, and unrealized gains.
+
 ```bash
 # Default — display in terminal
 clams reports portfolio-summary --format plain
@@ -73,6 +77,8 @@ clams reports portfolio-summary --machine --format json \
 ```
 
 ## Capital Gains
+
+Per-disposal realized gains/losses with cost basis, proceeds, fees, ROI, and holding period for tax reporting.
 
 Requires `--start` and `--end` (RFC3339 UTC timestamps). Does **not** support `--format plain`.
 
@@ -90,6 +96,8 @@ clams reports capital-gains \
 ```
 
 ## Journal Entries
+
+Raw double-entry ledger export with per-event debits and credits by account and connection.
 
 CSV only:
 
