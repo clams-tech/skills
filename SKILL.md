@@ -55,6 +55,16 @@ workspace → profile → connections → journals → reports
                     → metadata (notes, tags, exclusions)
 ```
 
+## Report Selection
+
+| User is asking about... | Report |
+|---|---|
+| Cost basis, net worth, unrealized gains, portfolio value, average cost | Portfolio Summary |
+| Realized gains/losses, tax reporting, disposals, capital gains | Capital Gains |
+| Current balances by account/connection, assets vs liabilities | Balance Sheet |
+| How balances changed over time, balance trends | Balance History |
+| Raw transaction data, ledger export | Journal Entries |
+
 ## Workflow Routing
 
 | User wants to... | Reference |
