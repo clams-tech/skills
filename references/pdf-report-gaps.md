@@ -62,10 +62,16 @@ The skill **cannot** close these without violating the principle.
 
 | # | Gap | Engine returns today | Needed |
 |---|-----|----------------------|--------|
-| **B5** | **Credit-normal sign not normalized.** Balance-sheet Liabilities/Equity/Income `.net` are negative; `clams reports balance-sheet` (plain) flips them positive, the JSON does not. The PDF shows the engine's negative signs and so **diverges from the CLI**. | negative `.net` for credit-normal rows | A per-row `display_net` already sign-normalized to match the CLI plain output, **or** a `normal_balance` enum (`debit`\|`credit`) so the template can present the convention declaratively. **Highest-impact gap.** |
-| **B7** | **No summary-only payload.** `--machine --format json` always includes the full `rows[]` / `disposals[]` / `open_lots[]` arrays (≈126 MB for ~160k disposals) even though the PDF needs only summary scalars. | full ledger arrays | A summary-only mode (e.g. `--summary`, or omit the arrays). Also the real fix for PDF latency and memory. |
+| **B7** | **No summary-only payload.** `--machine --format json` always includes the full `rows[]` / `disposals[]` / `open_lots[]` arrays (≈126 MB for ~160k disposals) even though the PDF needs only summary scalars. | full ledger arrays | A summary-only mode (e.g. `--summary`, or omit the arrays). Also the real fix for PDF latency and memory. **Highest-impact gap.** |
 | **B8** | **Gain/loss direction not provided.** Red/green/“+” styling would require deriving meaning from a sign. Removed; values render sign-only, no colour. | signed number only | An explicit `direction` enum (`gain`\|`loss`\|`flat`) so styling is declarative. Polish. |
 | **B9** | **Cost-basis-vs-market-value chart removed** (portfolio). It required skill-computed bar geometry from two fields. | — | Engine provides chart-ready proportions (e.g. a 0–1 ratio pair) or a pre-rendered comparison; then the template can draw it without math. Polish. |
+
+**Not an engine gap (resolved):** earlier drafts listed a "credit-normal
+sign normalization" gap. It was a misdiagnosis — a render-script filter
+omission, not an engine deficiency. `clams reports balance-sheet` (plain)
+does not sign-flip; it simply omits connection rows whose `.kind` is not in
+`included_kinds` (Income/Expenses). `render-balance-sheet.sh` now applies the
+same filter, so the PDF matches the CLI with no sign logic.
 
 ---
 
@@ -104,9 +110,9 @@ The skill **cannot** close these without violating the principle.
 |------|--------------|--------|
 | Snapshot time | `snapshot_timestamp` | A6 |
 | Included kinds | `included_kinds` | ✅ engine-ready (joined) |
-| Account tree | `roots[]…children[].balances[].net` | A1 / A2 + **B5** |
+| Account tree | `roots[]…children[].balances[].net` | A1 / A2 |
 | Totals | `totals[].debit_total/credit_total/net` | A1 / A2 |
-| Connection balances | `connection_balances[].balances[].net` | A1 / A2 + **B5** |
+| Connection balances | `connection_balances[]` | A1 / A2; rows filtered to `.kind ∈ included_kinds` (matches CLI; Income/Expenses excluded) |
 | Issues | `issues.unknown_account_rows` | ✅ engine-ready |
 | Account depth | (no `depth` field; `depth: null`) | Skill derives by walking `children` — structural, not financial, so allowed. An explicit per-node `depth` would remove the traversal. |
 
@@ -114,20 +120,13 @@ The skill **cannot** close these without violating the principle.
 
 ## Acceptance criteria
 
-The render scripts are correct as-is (presentation-formatting templaters).
-The PDFs match the CLI **except** balance-sheet credit-normal sign (B5).
-Engine work, in priority order:
+The render scripts are correct as-is (presentation-formatting templaters) and
+the PDFs match the CLI plain-text output. Engine work, in priority order:
 
-1. **B5** — `display_net` or `normal_balance` so the balance sheet PDF agrees
-   with `clams reports balance-sheet`. Highest impact (correctness/parity).
-2. **B7** — summary-only payload. Removes the large-payload latency/memory
+1. **B7** — summary-only payload. Removes the large-payload latency/memory
    cost and the need to ship the full ledger for a one-page summary.
-3. **Tier A canonicalization** (optional) — `_display` siblings so unit,
+2. **Tier A canonicalization** (optional) — `_display` siblings so unit,
    precision, sign, symbol and locale are the engine's decision, guaranteeing
    PDF/CLI parity. Scripts then render `_display` with no `format.sh` step.
-4. **B8 / B9** (polish) — `direction` enum for gain/loss colour; chart-ready
+3. **B8 / B9** (polish) — `direction` enum for gain/loss colour; chart-ready
    proportions to restore the cost-basis-vs-market-value bar.
-
-Until B5 ships, the balance-sheet PDF intentionally shows the engine's own
-signs for credit-normal accounts — a visible, honest marker of the gap rather
-than a skill-side accounting transform.

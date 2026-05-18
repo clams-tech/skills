@@ -60,10 +60,10 @@ read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 # ── Templater (presentation-only formatting) ──
 # jq extracts engine values to TSV; bash applies single-field presentation
 # formatting (sats→BTC, cents→fiat) via format.sh and concatenates rows.
-# NO sign inversion: the CLI plain-text formatter sign-flips credit-normal
-# accounts (Liabilities/Equity/Income) — that is account-type derivation
-# across fields and stays the engine's responsibility, so this PDF shows the
-# engine's own signs. See references/pdf-report-gaps.md.
+# connection_balances[] is filtered to rows whose .kind is in the top-level
+# .included_kinds — exactly what the CLI plain-text Connection Balances
+# section shows (Income/Expenses connections are excluded there too). This
+# is row selection on an engine field, not arithmetic or sign inversion.
 
 JSON=$(cat)
 
@@ -98,7 +98,9 @@ while IFS=$'\t' read -r _label _kind _btc _usd; do
   [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
   CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${_label}</td><td>${_kind}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
 done <<< "$(echo "$JSON" | jq -r '
+  (.data.included_kinds // []) as $inc |
   .data.connection_balances[]? |
+  select(.kind as $k | ($inc | index($k)) != null) |
   (((.balances // []) | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
   (((.balances // []) | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
   "\(.connection_label)\t\(.kind)\t\($btc)\t\($usd)"
