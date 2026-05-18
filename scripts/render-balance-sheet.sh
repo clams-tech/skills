@@ -34,6 +34,8 @@ if ! command -v jq &>/dev/null; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=format.sh
+. "$SCRIPT_DIR/format.sh"
 if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
   cat >&2 <<'WEASYERR'
 Error: WeasyPrint is required for PDF output, but no working installation was found.
@@ -55,45 +57,64 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-# ── Dumb templater ──
-# NO arithmetic, NO formatting, NO sign inversion on financial values. jq
-# extracts engine values and places them verbatim into row HTML; bash only
-# concatenates. The CLI's plain-text formatter sign-flips credit-normal
-# accounts (Liabilities/Equity/Income) and converts sats/cents for display —
-# this PDF intentionally does NOT replicate that; it is engine responsibility.
-# Values are shown exactly as the engine returns them. See
-# references/pdf-report-gaps.md for the upstream spec to fix this properly.
+# ── Templater (presentation-only formatting) ──
+# jq extracts engine values to TSV; bash applies single-field presentation
+# formatting (sats→BTC, cents→fiat) via format.sh and concatenates rows.
+# NO sign inversion: the CLI plain-text formatter sign-flips credit-normal
+# accounts (Liabilities/Equity/Income) — that is account-type derivation
+# across fields and stays the engine's responsibility, so this PDF shows the
+# engine's own signs. See references/pdf-report-gaps.md.
 
 JSON=$(cat)
 
-SNAPSHOT_TIMESTAMP=$(echo "$JSON" | jq -r '.data.snapshot_timestamp // ""')
+SNAPSHOT_TIMESTAMP=$(fmt_ts "$(echo "$JSON" | jq -r '.data.snapshot_timestamp // ""')")
 INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds // [] | join(", ")')
 NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final // false | tostring')
 UNKNOWN_ROWS=$(echo "$JSON" | jq -r '.data.issues.unknown_account_rows // 0')
 
-# Account tree: engine .net per asset, verbatim. depth drives indentation
-# only (via a CSS custom property + calc — no script/jq value math).
-ACCOUNT_HTML=$(echo "$JSON" | jq -r '
+# Account tree → TSV "depth \t label \t btc_sats \t usd_cents"; depth drives
+# indentation only (CSS custom property + calc — no script value math).
+ACCOUNT_HTML=""
+while IFS=$'\t' read -r _d _label _btc _usd; do
+  [ -z "$_label" ] && continue
+  [ -n "$_btc" ] && _bd="$(fmt_btc_sats "$_btc")" || _bd=""
+  [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
+  [ "$_d" = "0" ] && _cls="root" || _cls="child"
+  ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"${_cls}\"><td class=\"acct\" style=\"--d:${_d}\">${_label}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '
   def walk(depth):
     . as $n | ($n.balances // []) as $b |
     (($b | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
     (($b | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
-    "<tr class=\"\(if depth==0 then "root" else "child" end)\"><td class=\"acct\" style=\"--d:\(depth)\">\($n.label)</td><td class=\"num\">\($btc)</td><td class=\"num\">\($usd)</td></tr>",
+    "\(depth)\t\($n.label)\t\($btc)\t\($usd)",
     (($n.children // [])[] | walk(depth + 1));
   .data.roots[]? | walk(0)
-')
+')"
 
-CONNECTION_HTML=$(echo "$JSON" | jq -r '
+CONNECTION_HTML=""
+while IFS=$'\t' read -r _label _kind _btc _usd; do
+  [ -z "$_label" ] && continue
+  [ -n "$_btc" ] && _bd="$(fmt_btc_sats "$_btc")" || _bd=""
+  [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
+  CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${_label}</td><td>${_kind}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '
   .data.connection_balances[]? |
   (((.balances // []) | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
   (((.balances // []) | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
-  "<tr><td>\(.connection_label)</td><td>\(.kind)</td><td class=\"num\">\($btc)</td><td class=\"num\">\($usd)</td></tr>"
-')
+  "\(.connection_label)\t\(.kind)\t\($btc)\t\($usd)"
+')"
 
-TOTALS_HTML=$(echo "$JSON" | jq -r '
-  .data.totals[]? |
-  "<tr><td>\(.asset_code)</td><td class=\"num\">\(.debit_total)</td><td class=\"num\">\(.credit_total)</td><td class=\"num\">\(.net)</td></tr>"
-')
+# Totals: format each amount by the row's own asset (BTC=sats, else=cents).
+TOTALS_HTML=""
+while IFS=$'\t' read -r _asset _deb _cred _net; do
+  [ -z "$_asset" ] && continue
+  if [ "$_asset" = "BTC" ]; then
+    _deb="$(fmt_btc_sats "$_deb")"; _cred="$(fmt_btc_sats "$_cred")"; _net="$(fmt_btc_sats "$_net")"
+  else
+    _deb="$(fmt_fiat_cents "$_deb" "$_asset")"; _cred="$(fmt_fiat_cents "$_cred" "$_asset")"; _net="$(fmt_fiat_cents "$_net" "$_asset")"
+  fi
+  TOTALS_HTML="${TOTALS_HTML}<tr><td>${_asset}</td><td class=\"num\">${_deb}</td><td class=\"num\">${_cred}</td><td class=\"num\">${_net}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '.data.totals[]? | "\(.asset_code)\t\(.debit_total)\t\(.credit_total)\t\(.net)"')"
 
 ISSUES_HTML=""
 if [ "$UNKNOWN_ROWS" != "0" ]; then

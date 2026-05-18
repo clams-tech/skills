@@ -1,32 +1,41 @@
 # PDF Report Gaps — Upstream Engine Spec
 
-**Status:** the bundled PDF render scripts are now **dumb templaters**. They
-perform **no arithmetic and no formatting** on financial values — they only
-substitute strings the Clams engine returns, verbatim, into an HTML template
-(see `scripts/render-*.sh`).
+**Status:** the bundled PDF render scripts are **presentation-formatting
+templaters**. Via `scripts/format.sh` they apply *single-field* presentation
+formatting only (sats→BTC, cents→fiat, currency symbol + 2 dp, `%`, readable
+dates). They do **not** compute totals, ratios, charts, or invert
+credit-normal signs.
 
-**Consequence:** the engine currently exposes almost no display-ready
-financial values, so the PDFs show raw base-unit values (sats, cents, 3-dp
-fiat, bare percentages, credit-normal negatives). This is intentional. The
-skill must not invent or convert financial values; the engine must provide
-them display-ready.
+**Consequence:** values render cleanly, but two classes of gap remain because
+they require *multi-field* logic the skill must not do:
+
+1. **Sign normalization (X5).** Balance-sheet Liabilities/Equity/Income are
+   credit-normal; the CLI plain-text formatter flips them positive, the JSON
+   does not. The PDF shows the engine's own negative signs and so diverges
+   from `clams reports balance-sheet`.
+2. **Derived/aggregate visuals (chart, direction).** The portfolio
+   cost-basis-vs-market-value chart was removed (it needed computed geometry).
 
 This document is the spec for the Clams engine team: implement these and the
-PDFs become correct and presentable again **with zero skill-side computation**.
+PDFs match the CLI exactly with zero multi-field logic in the skill. The
+single-field formatting gaps (X1–X4, X6) are now handled by the skill;
+canonical engine `_display` fields are still **recommended** so PDF, CLI, and
+locale never disagree, but they are no longer blocking.
 
 ---
 
 ## Principle
 
-> PDF = dumb templater. CSV = machine ledger. The engine computes and formats;
-> the skill places strings. If a value is not display-ready from the CLI, it is
-> an engine gap — never a skill computation.
+> The skill formats one engine value at a time for display. It never derives a
+> *new* figure (sum, ratio, account-type sign, chart geometry) — that is the
+> engine's job. CSV remains the machine ledger.
 
-A render script is allowed to: select fields, place them in a slot, repeat an
-engine-provided list into rows, show/hide a block on an engine-provided
-boolean, and do declarative layout (CSS). It is **not** allowed to: convert
-units, scale, round, add currency symbols/separators, derive signs or
-percentages, invert accounting signs, or compute chart geometry.
+A render script **may**: select a field, apply a fixed-constant unit scale or
+locale/symbol/`%`/date formatting to that single field, place it in a slot,
+repeat an engine list into rows, toggle a block on an engine boolean, and do
+declarative layout (CSS). It **may not**: combine or aggregate fields, derive
+percentages or signs from other fields, invert accounting signs by account
+type, or compute chart geometry.
 
 ---
 

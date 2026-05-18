@@ -34,6 +34,8 @@ if ! command -v jq &>/dev/null; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=format.sh
+. "$SCRIPT_DIR/format.sh"
 if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
   cat >&2 <<'WEASYERR'
 Error: WeasyPrint is required for PDF output, but no working installation was found.
@@ -55,18 +57,12 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-# ── Dumb templater ──
-# This script performs NO arithmetic and NO formatting on financial values.
-# It only substitutes strings the Clams engine returns, verbatim, into the
-# template (single jq pass; no sats→BTC, no cents→fiat, no currency
-# formatting, no sign/percentage derivation, no computed chart geometry).
-# Values the engine does not yet expose display-ready are shown exactly as
-# received — see references/pdf-report-gaps.md for the upstream spec.
-
-# One jq pass over stdin (the huge input is parsed once; only this small
-# output is held). Line 1 is a TSV of scalars; remaining lines are pre-built
-# asset-balance <tr> rows (verbatim engine .net, no conversion). bash 3.2
-# safe — no mapfile, no C-style for.
+# ── Templater (presentation-only formatting) ──
+# Single jq pass over stdin (the huge input is parsed once; only this small
+# output is held). Line 1 = TSV scalars; remaining lines = "asset<TAB>net"
+# (raw engine .net). Presentation formatting of INDIVIDUAL fields (sats→BTC,
+# cents→fiat, symbol, %, date) is applied via format.sh. NO multi-field
+# derivation, NO computed figures, NO chart. See references/pdf-report-gaps.md.
 _OUT=$(jq -r '
   ( [
       .data.snapshot_timestamp // "",
@@ -89,7 +85,7 @@ _OUT=$(jq -r '
       .data.btc_capital_gains.average_cost_basis_fiat_per_btc // "",
       .data.btc_capital_gains.total_gain_fiat // ""
     ] | @tsv ),
-  ( .data.balances[]? | "<tr><td>\(.asset_code)</td><td class=\"num\">\(.net)</td></tr>" )
+  ( .data.balances[]? | "\(.asset_code)\t\(.net)" )
 ')
 
 IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
@@ -98,10 +94,37 @@ IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
   UNREALIZED_GAIN UNREALIZED_PCT UNREALIZED_COST_BASIS TOTAL_COST_BASIS_ALL \
   AVG_COST_BASIS TOTAL_GAIN <<< "$(printf '%s\n' "$_OUT" | head -n 1)"
 
-# Concatenate the engine-provided balance rows verbatim (pure templating).
-BALANCE_HTML=$(printf '%s\n' "$_OUT" | tail -n +2 | tr -d '\n')
+# Asset-balance rows: format each row's net by its own asset (single-field
+# presentation — BTC: sats→BTC; other: fiat minor units→major).
+BALANCE_HTML=""
+while IFS=$'\t' read -r _asset _net; do
+  [ -z "$_asset" ] && continue
+  if [ "$_asset" = "BTC" ]; then
+    _disp="$(fmt_btc_sats "$_net") BTC"
+  else
+    _disp="$(fmt_fiat_cents "$_net" "$_asset")"
+  fi
+  BALANCE_HTML="${BALANCE_HTML}<tr><td>${_asset}</td><td class=\"num\">${_disp}</td></tr>"
+done <<< "$(printf '%s\n' "$_OUT" | tail -n +2)"
 
-CSV_NOTE_HTML='<p class="note">This PDF is a summary document rendered verbatim from Clams engine output — no values are computed or reformatted by the skill. For the complete line-item record, export Journal Entries or Capital Gains as CSV (clams reports journal-entries --format csv; clams reports capital-gains --format csv).</p>'
+# ── Presentation formatting (single-field, fixed-constant; see format.sh) ──
+SNAPSHOT_TIMESTAMP=$(fmt_ts "$SNAPSHOT_TIMESTAMP")
+BTC_BALANCE=$(fmt_btc_sats "$BTC_BALANCE")
+BTC_BALANCE_FIAT=$(fmt_fiat_major "$BTC_BALANCE_FIAT" "$FIAT_CURRENCY")
+FIAT_VALUATION_TOTAL=$(fmt_fiat_major "$FIAT_VALUATION_TOTAL" "$FIAT_CURRENCY")
+TOTAL_QTY_SOLD=$(fmt_btc_sats "$TOTAL_QTY_SOLD")
+TOTAL_PROCEEDS=$(fmt_fiat_major "$TOTAL_PROCEEDS" "$FIAT_CURRENCY")
+TOTAL_COST_BASIS=$(fmt_fiat_major "$TOTAL_COST_BASIS" "$FIAT_CURRENCY")
+REALIZED_GAIN=$(fmt_fiat_major "$REALIZED_GAIN" "$FIAT_CURRENCY")
+REALIZED_PCT=$(fmt_pct "$REALIZED_PCT")
+UNREALIZED_GAIN=$(fmt_fiat_major "$UNREALIZED_GAIN" "$FIAT_CURRENCY")
+UNREALIZED_PCT=$(fmt_pct "$UNREALIZED_PCT")
+UNREALIZED_COST_BASIS=$(fmt_fiat_major "$UNREALIZED_COST_BASIS" "$FIAT_CURRENCY")
+TOTAL_COST_BASIS_ALL=$(fmt_fiat_major "$TOTAL_COST_BASIS_ALL" "$FIAT_CURRENCY")
+AVG_COST_BASIS=$(fmt_fiat_major "$AVG_COST_BASIS" "$FIAT_CURRENCY")
+TOTAL_GAIN=$(fmt_fiat_major "$TOTAL_GAIN" "$FIAT_CURRENCY")
+
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. Figures are Clams engine values with presentation formatting only (no totals or derivations computed by the skill). For the complete line-item record, export Journal Entries or Capital Gains as CSV (clams reports journal-entries --format csv; clams reports capital-gains --format csv).</p>'
 
 # Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
@@ -372,7 +395,7 @@ cat <<HTMLEOF_BODY
   <div class="hero-metric">
     <div class="hero-label">BTC Holdings</div>
     <div class="hero-value">${BTC_BALANCE}</div>
-    <div class="hero-sub">${BTC_BALANCE_FIAT} ${FIAT_CURRENCY} market value</div>
+    <div class="hero-sub">${BTC_BALANCE_FIAT} market value</div>
   </div>
   <div class="hero-metric">
     <div class="hero-label">Net Portfolio Value (${FIAT_CURRENCY})</div>
@@ -395,29 +418,29 @@ ${BALANCE_HTML}
 <div class="gains">
   <div class="gain">
     <div class="gain-label">Realized Gain/Loss</div>
-    <div class="gain-value">${REALIZED_GAIN} ${FIAT_CURRENCY}</div>
-    <div class="gain-pct">${REALIZED_PCT}%</div>
+    <div class="gain-value">${REALIZED_GAIN}</div>
+    <div class="gain-pct">${REALIZED_PCT}</div>
   </div>
   <div class="gain">
     <div class="gain-label">Unrealized Gain/Loss</div>
-    <div class="gain-value">${UNREALIZED_GAIN} ${FIAT_CURRENCY}</div>
-    <div class="gain-pct">${UNREALIZED_PCT}%</div>
+    <div class="gain-value">${UNREALIZED_GAIN}</div>
+    <div class="gain-pct">${UNREALIZED_PCT}</div>
   </div>
   <div class="gain">
     <div class="gain-label">Total Gain/Loss</div>
-    <div class="gain-value">${TOTAL_GAIN} ${FIAT_CURRENCY}</div>
+    <div class="gain-value">${TOTAL_GAIN}</div>
   </div>
 </div>
 
 <h2>Cost Basis Detail</h2>
 <div class="details">
   <div class="detail"><span class="detail-label">Disposals</span><span class="detail-value">${SALE_COUNT}</span></div>
-  <div class="detail"><span class="detail-label">Total Sold</span><span class="detail-value">${TOTAL_QTY_SOLD}</span></div>
-  <div class="detail"><span class="detail-label">Total Proceeds</span><span class="detail-value">${TOTAL_PROCEEDS} ${FIAT_CURRENCY}</span></div>
-  <div class="detail"><span class="detail-label">Cost Basis (Sold)</span><span class="detail-value">${TOTAL_COST_BASIS} ${FIAT_CURRENCY}</span></div>
-  <div class="detail"><span class="detail-label">Cost Basis (Open)</span><span class="detail-value">${UNREALIZED_COST_BASIS} ${FIAT_CURRENCY}</span></div>
-  <div class="detail"><span class="detail-label">Total Cost Basis</span><span class="detail-value">${TOTAL_COST_BASIS_ALL} ${FIAT_CURRENCY}</span></div>
-  <div class="detail"><span class="detail-label">Avg Cost / BTC</span><span class="detail-value">${AVG_COST_BASIS} ${FIAT_CURRENCY}</span></div>
+  <div class="detail"><span class="detail-label">Total Sold</span><span class="detail-value">${TOTAL_QTY_SOLD} BTC</span></div>
+  <div class="detail"><span class="detail-label">Total Proceeds</span><span class="detail-value">${TOTAL_PROCEEDS}</span></div>
+  <div class="detail"><span class="detail-label">Cost Basis (Sold)</span><span class="detail-value">${TOTAL_COST_BASIS}</span></div>
+  <div class="detail"><span class="detail-label">Cost Basis (Open)</span><span class="detail-value">${UNREALIZED_COST_BASIS}</span></div>
+  <div class="detail"><span class="detail-label">Total Cost Basis</span><span class="detail-value">${TOTAL_COST_BASIS_ALL}</span></div>
+  <div class="detail"><span class="detail-label">Avg Cost / BTC</span><span class="detail-value">${AVG_COST_BASIS}</span></div>
 </div>
 
 ${CSV_NOTE_HTML}

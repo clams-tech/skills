@@ -34,6 +34,8 @@ if ! command -v jq &>/dev/null; then
 fi
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=format.sh
+. "$SCRIPT_DIR/format.sh"
 if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
   cat >&2 <<'WEASYERR'
 Error: WeasyPrint is required for PDF output, but no working installation was found.
@@ -55,13 +57,12 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-# ── Dumb templater ──
-# This script performs NO arithmetic and NO formatting on financial values.
-# It only substitutes strings the Clams engine returns, verbatim, into the
-# template (single jq pass; no per-field reparse, no sats→BTC, no currency
-# formatting, no sign/percentage derivation). Values the engine does not yet
-# expose display-ready are shown exactly as received — see
-# references/pdf-report-gaps.md for the upstream spec to fix this properly.
+# ── Templater (presentation-only formatting) ──
+# Single jq pass; no per-field reparse. The only transforms applied are
+# presentation formatting of INDIVIDUAL engine fields (sats→BTC, fiat
+# symbol/2dp, %, date) via format.sh. NO multi-field derivation, NO
+# computed figures, NO account-type sign logic, NO charts — those belong
+# in the engine. See references/pdf-report-gaps.md.
 
 IFS=$'\t' read -r FIAT_CURRENCY ALGORITHM RANGE_START RANGE_END NON_FINAL \
   DISPOSAL_COUNT ROW_COUNT TOTAL_QTY_DISPOSED GROSS_PROCEEDS FEES \
@@ -89,13 +90,24 @@ if [ -z "$RANGE_START" ] || [ -z "$RANGE_END" ]; then
   exit 1
 fi
 
+# ── Presentation formatting (single-field, fixed-constant; see format.sh) ──
+RANGE_START=$(fmt_date "$RANGE_START")
+RANGE_END=$(fmt_date "$RANGE_END")
+TOTAL_QTY_DISPOSED=$(fmt_btc_sats "$TOTAL_QTY_DISPOSED")
+GROSS_PROCEEDS=$(fmt_fiat_major "$GROSS_PROCEEDS" "$FIAT_CURRENCY")
+FEES=$(fmt_fiat_major "$FEES" "$FIAT_CURRENCY")
+NET_PROCEEDS=$(fmt_fiat_major "$NET_PROCEEDS" "$FIAT_CURRENCY")
+COST_BASIS=$(fmt_fiat_major "$COST_BASIS" "$FIAT_CURRENCY")
+REALIZED_GAIN=$(fmt_fiat_major "$REALIZED_GAIN" "$FIAT_CURRENCY")
+REALIZED_PCT=$(fmt_pct "$REALIZED_PCT")
+
 # Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
 fi
 
-CSV_NOTE_HTML='<p class="note">This PDF is a summary document rendered verbatim from Clams engine output — no values are computed or reformatted by the skill. For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. Figures are Clams engine values with presentation formatting only (no totals or derivations computed by the skill). For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
 
 emit_html() {
 cat <<'HTMLEOF_TOP'
@@ -318,24 +330,24 @@ cat <<HTMLEOF_BODY
 <div class="summary">
   <div class="summary-metric">
     <div class="summary-label">Gross Proceeds</div>
-    <div class="summary-value">${GROSS_PROCEEDS} ${FIAT_CURRENCY}</div>
+    <div class="summary-value">${GROSS_PROCEEDS}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Fees</div>
-    <div class="summary-value">${FEES} ${FIAT_CURRENCY}</div>
+    <div class="summary-value">${FEES}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Net Proceeds</div>
-    <div class="summary-value">${NET_PROCEEDS} ${FIAT_CURRENCY}</div>
+    <div class="summary-value">${NET_PROCEEDS}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Cost Basis</div>
-    <div class="summary-value">${COST_BASIS} ${FIAT_CURRENCY}</div>
+    <div class="summary-value">${COST_BASIS}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Realized Gain/Loss</div>
-    <div class="summary-value">${REALIZED_GAIN} ${FIAT_CURRENCY}</div>
-    <div class="summary-sub">${REALIZED_PCT}%</div>
+    <div class="summary-value">${REALIZED_GAIN}</div>
+    <div class="summary-sub">${REALIZED_PCT}</div>
   </div>
 </div>
 
@@ -343,7 +355,7 @@ cat <<HTMLEOF_BODY
 <div class="details">
   <div class="detail"><span class="detail-label">Disposals</span><span class="detail-value">${DISPOSAL_COUNT}</span></div>
   <div class="detail"><span class="detail-label">Lot Selections</span><span class="detail-value">${ROW_COUNT}</span></div>
-  <div class="detail"><span class="detail-label">Total Quantity Disposed</span><span class="detail-value">${TOTAL_QTY_DISPOSED}</span></div>
+  <div class="detail"><span class="detail-label">Total Quantity Disposed</span><span class="detail-value">${TOTAL_QTY_DISPOSED} BTC</span></div>
 </div>
 
 ${CSV_NOTE_HTML}
