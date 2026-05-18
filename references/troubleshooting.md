@@ -256,6 +256,59 @@ clams context set --profile <PROFILE_ID_OR_LABEL> --machine --format json
 
 ---
 
+## Symptom: PDF Won't Generate / WeasyPrint Not Found
+
+**Diagnostic:** the render script exited non-zero. Check the exit code and message.
+
+```bash
+clams reports capital-gains --start ... --end ... --machine --format json \
+  | <skill-dir>/scripts/render-capital-gains.sh --pdf out.pdf
+echo "exit=$?"
+```
+
+### → Exit code 3, message "WeasyPrint is required ..."
+
+No working WeasyPrint was found. The render scripts already search PATH, Homebrew, pip-user locations, and `python3 -m weasyprint`, and they functionally verify the candidate can render — so this means none works, not merely that it's off PATH.
+
+**Do not run an unprompted install.** Instead:
+
+1. Generate the report without PDF so the user isn't blocked:
+
+```bash
+# data report
+clams reports capital-gains --start ... --end ... --format csv --output out.csv
+# display report
+clams reports balance-sheet --format plain
+```
+
+2. Tell the user PDF needs WeasyPrint and offer the one-time install, then retry **after they confirm**:
+
+```bash
+# macOS
+brew install weasyprint
+# Linux (Debian/Ubuntu)
+sudo apt install weasyprint
+```
+
+**Never** `pip install weasyprint` into the system Python — it imports but fails to render (missing Pango/cairo/GDK-PixBuf).
+
+### → WeasyPrint is installed but still not found
+
+It's likely in a non-standard location. Point the skill at it directly and retry:
+
+```bash
+CLAMS_WEASYPRINT=/full/path/to/weasyprint \
+  <skill-dir>/scripts/render-capital-gains.sh --pdf out.pdf < ...
+```
+
+Confirm the resolver sees it:
+
+```bash
+<skill-dir>/scripts/find-weasyprint.sh   # prints the resolved command, or exits 1
+```
+
+---
+
 ## Still Stuck?
 
 If the error JSON doesn't match any symptom above:

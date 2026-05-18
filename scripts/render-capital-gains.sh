@@ -33,96 +33,81 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-if ! command -v weasyprint &>/dev/null; then
-  echo "Error: weasyprint is required but not installed." >&2
-  echo "Install with: brew install weasyprint" >&2
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=format.sh
+. "$SCRIPT_DIR/format.sh"
+if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
+  cat >&2 <<'WEASYERR'
+Error: WeasyPrint is required for PDF output, but no working installation was found.
+
+WeasyPrint needs native libraries (Pango, cairo, GDK-PixBuf). Install it once:
+  macOS:  brew install weasyprint
+  Linux:  sudo apt install weasyprint   (or your distro's equivalent)
+
+Do NOT `pip install` WeasyPrint into the system Python — that produces an
+install that imports but cannot render (missing native libraries).
+
+Already installed elsewhere? Point the skill at it and retry:
+  CLAMS_WEASYPRINT=/full/path/to/weasyprint  <skill-dir>/scripts/render-...sh --pdf ...
+
+No PDF needed right now? Generate this report without it:
+  --format plain   (terminal display)      --format csv --output <path>   (data)
+WEASYERR
+  exit 3
+fi
+read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
+
+# ── Templater (presentation-only formatting) ──
+# Single jq pass; no per-field reparse. The only transforms applied are
+# presentation formatting of INDIVIDUAL engine fields (sats→BTC, fiat
+# symbol/2dp, %, date) via format.sh. NO multi-field derivation, NO
+# computed figures, NO account-type sign logic, NO charts — those belong
+# in the engine.
+
+IFS=$'\t' read -r FIAT_CURRENCY ALGORITHM RANGE_START RANGE_END NON_FINAL \
+  DISPOSAL_COUNT ROW_COUNT TOTAL_QTY_DISPOSED GROSS_PROCEEDS FEES \
+  NET_PROCEEDS COST_BASIS REALIZED_GAIN REALIZED_PCT < <(
+  jq -r '[
+    .data.fiat_currency // "",
+    .data.algorithm // "",
+    .data.range_start // "",
+    .data.range_end // "",
+    (.data.non_final // false | tostring),
+    (.data.summary.disposal_count // 0 | tostring),
+    (.data.summary.row_count // 0 | tostring),
+    .data.summary.total_quantity_disposed // "",
+    .data.summary.total_gross_proceeds_fiat // "",
+    .data.summary.total_fiat_fees_fiat // "",
+    .data.summary.total_net_proceeds_fiat // "",
+    .data.summary.total_cost_basis_fiat // "",
+    .data.summary.total_realized_gain_fiat // "",
+    .data.summary.total_realized_gain_percentage // ""
+  ] | @tsv'
+)
+
+if [ -z "$RANGE_START" ] || [ -z "$RANGE_END" ]; then
+  echo "Error: JSON is missing range_start or range_end. Pipe the output of 'clams reports capital-gains --machine --format json'." >&2
   exit 1
 fi
 
-JSON=$(cat)
+# ── Presentation formatting (single-field, fixed-constant; see format.sh) ──
+RANGE_START=$(fmt_date "$RANGE_START")
+RANGE_END=$(fmt_date "$RANGE_END")
+TOTAL_QTY_DISPOSED=$(fmt_btc_sats "$TOTAL_QTY_DISPOSED")
+GROSS_PROCEEDS=$(fmt_fiat_major "$GROSS_PROCEEDS" "$FIAT_CURRENCY")
+FEES=$(fmt_fiat_major "$FEES" "$FIAT_CURRENCY")
+NET_PROCEEDS=$(fmt_fiat_major "$NET_PROCEEDS" "$FIAT_CURRENCY")
+COST_BASIS=$(fmt_fiat_major "$COST_BASIS" "$FIAT_CURRENCY")
+REALIZED_GAIN=$(fmt_fiat_major "$REALIZED_GAIN" "$FIAT_CURRENCY")
+REALIZED_PCT=$(fmt_pct "$REALIZED_PCT")
 
-# ── Extract header fields ──
-
-FIAT_CURRENCY=$(echo "$JSON" | jq -r '.data.fiat_currency')
-ALGORITHM=$(echo "$JSON" | jq -r '.data.algorithm')
-START_DATE=$(echo "$JSON" | jq -r '.data.range_start // empty' | sed 's/T.*//')
-END_DATE=$(echo "$JSON" | jq -r '.data.range_end // empty' | sed 's/T.*//')
-
-if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
-  echo "Error: JSON is missing range_start or range_end. Make sure you pipe the output of 'clams reports capital-gains --machine --format json'." >&2
-  exit 1
-fi
-NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
-
-# ── Summary ──
-
-DISPOSAL_COUNT=$(echo "$JSON" | jq -r '.data.summary.disposal_count')
-ROW_COUNT=$(echo "$JSON" | jq -r '.data.summary.row_count')
-TOTAL_QTY_DISPOSED=$(echo "$JSON" | jq -r '.data.summary.total_quantity_disposed | tonumber / 100000000')
-TOTAL_GROSS_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_gross_proceeds_fiat | tonumber')
-TOTAL_FEES=$(echo "$JSON" | jq -r '.data.summary.total_fiat_fees_fiat | tonumber')
-TOTAL_NET_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_net_proceeds_fiat | tonumber')
-TOTAL_COST_BASIS=$(echo "$JSON" | jq -r '.data.summary.total_cost_basis_fiat | tonumber')
-TOTAL_GAIN_LOSS=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_fiat | tonumber')
-TOTAL_GAIN_PCT=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_percentage | tonumber')
-
-# ── Format summary values ──
-
-QTY_DISPOSED_FMT=$(printf "%.8f" "$TOTAL_QTY_DISPOSED")
-GROSS_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_GROSS_PROCEEDS")
-FEES_FMT=$(printf "%'.2f" "$TOTAL_FEES")
-NET_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_NET_PROCEEDS")
-COST_BASIS_FMT=$(printf "%'.2f" "$TOTAL_COST_BASIS")
-GAIN_LOSS_FMT=$(printf "%'.2f" "$TOTAL_GAIN_LOSS")
-GAIN_PCT_FMT=$(printf "%.2f" "$TOTAL_GAIN_PCT")
-
-# Gain/loss helpers
-gain_class() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "positive" : "negative" }'; }
-sign_prefix() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "+" : "" }'; }
-
-TOTAL_GL_CLASS=$(gain_class "$TOTAL_GAIN_LOSS")
-TOTAL_GL_SIGN=$(sign_prefix "$TOTAL_GAIN_LOSS")
-GAIN_PCT_SIGN=$(sign_prefix "$TOTAL_GAIN_PCT")
-
-# ── Build disposal rows ──
-
-DISPOSAL_ROWS=$(echo "$JSON" | jq -r '
-  .data.rows[] |
-  (.sale_timestamp | split("T")[0]) as $sale_date |
-  (.purchase_timestamp | split("T")[0]) as $purchase_date |
-  (.quantity_disposed | tonumber / 100000000) as $qty |
-  (.gross_proceeds_fiat | tonumber) as $gross |
-  (.fiat_fees_fiat | tonumber) as $fees |
-  (.net_proceeds_fiat | tonumber) as $net |
-  (.cost_basis_fiat | tonumber) as $cb |
-  (.realized_gain_fiat | tonumber) as $gain |
-  (.holding_period_days) as $days |
-  (if .holding_period_days >= 365 then "LT" else "ST" end) as $holding |
-  (.sale_connections // [] | map(.connection_label) | join(", ")) as $conn |
-  "\($sale_date)\t\($purchase_date)\t\($qty)\t\($gross)\t\($fees)\t\($net)\t\($cb)\t\($gain)\t\($days)\t\($holding)\t\($conn)"
-')
-
-# ── Generate table rows HTML ──
-
-TABLE_HTML=""
-while IFS=$'\t' read -r sale_date purchase_date qty gross fees net cb gain days holding conn; do
-  [ -z "$sale_date" ] && continue
-  qty_fmt=$(printf "%.8f" "$qty")
-  gross_fmt=$(printf "%'.2f" "$gross")
-  fees_fmt=$(printf "%'.2f" "$fees")
-  net_fmt=$(printf "%'.2f" "$net")
-  cb_fmt=$(printf "%'.2f" "$cb")
-  gain_fmt=$(printf "%'.2f" "$gain")
-  gl_class=$(gain_class "$gain")
-  gl_sign=$(sign_prefix "$gain")
-  TABLE_HTML="${TABLE_HTML}<tr><td>${sale_date}</td><td>${purchase_date}</td><td>${conn}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">${gross_fmt}</td><td class=\"num\">${fees_fmt}</td><td class=\"num\">${net_fmt}</td><td class=\"num\">${cb_fmt}</td><td class=\"num ${gl_class}\">${gl_sign}${gain_fmt}</td><td class=\"num\">${days}</td><td>${holding}</td></tr>"
-done <<< "$DISPOSAL_ROWS"
-
-# Non-final warning
+# Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
 fi
+
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
 
 emit_html() {
 cat <<'HTMLEOF_TOP'
@@ -190,6 +175,22 @@ cat <<'HTMLEOF_TOP'
     font-size: 9px;
     padding: 4px 8px;
     margin-top: 8px;
+  }
+  /* Document-level disclaimer, pinned to the foot of the page just above
+     the running "Generated by Clams" footer (position:fixed is relative to
+     the page content box; the @page margin boxes sit below it). */
+  .note {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #ffffff;
+    border-top: 1px solid #e0ddd6;
+    padding-top: 6px;
+    color: #646663;
+    font-size: 8px;
+    font-style: italic;
+    line-height: 1.5;
   }
   /* ── Section labels ── */
   h2 {
@@ -303,7 +304,7 @@ cat <<HTMLEOF_BODY
   <div class="header-left">
     <div class="report-name">Capital Gains Report</div>
     <div class="report-meta">
-      ${START_DATE} to ${END_DATE}<br>
+      ${RANGE_START} to ${RANGE_END}<br>
       Cost basis method: ${ALGORITHM} &middot; Currency: ${FIAT_CURRENCY} &middot; ${DISPOSAL_COUNT} disposals, ${ROW_COUNT} lot selections
     </div>
     ${NON_FINAL_HTML}
@@ -329,24 +330,24 @@ cat <<HTMLEOF_BODY
 <div class="summary">
   <div class="summary-metric">
     <div class="summary-label">Gross Proceeds</div>
-    <div class="summary-value">\$${GROSS_PROCEEDS_FMT}</div>
+    <div class="summary-value">${GROSS_PROCEEDS}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Fees</div>
-    <div class="summary-value">\$${FEES_FMT}</div>
+    <div class="summary-value">${FEES}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Net Proceeds</div>
-    <div class="summary-value">\$${NET_PROCEEDS_FMT}</div>
+    <div class="summary-value">${NET_PROCEEDS}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Cost Basis</div>
-    <div class="summary-value">\$${COST_BASIS_FMT}</div>
+    <div class="summary-value">${COST_BASIS}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Realized Gain/Loss</div>
-    <div class="summary-value ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}\$${GAIN_LOSS_FMT}</div>
-    <div class="summary-sub">${GAIN_PCT_SIGN}${GAIN_PCT_FMT}%</div>
+    <div class="summary-value">${REALIZED_GAIN}</div>
+    <div class="summary-sub">${REALIZED_PCT}</div>
   </div>
 </div>
 
@@ -354,24 +355,15 @@ cat <<HTMLEOF_BODY
 <div class="details">
   <div class="detail"><span class="detail-label">Disposals</span><span class="detail-value">${DISPOSAL_COUNT}</span></div>
   <div class="detail"><span class="detail-label">Lot Selections</span><span class="detail-value">${ROW_COUNT}</span></div>
-  <div class="detail"><span class="detail-label">Total Qty Disposed</span><span class="detail-value">${QTY_DISPOSED_FMT} BTC</span></div>
+  <div class="detail"><span class="detail-label">Total Quantity Disposed</span><span class="detail-value">${TOTAL_QTY_DISPOSED} BTC</span></div>
 </div>
 
-<h2>Lot Selections</h2>
-<table>
-  <thead>
-    <tr><th>Sold</th><th>Acquired</th><th>Connection</th><th class="num">Qty (BTC)</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th><th class="num">Days</th><th>Term</th></tr>
-  </thead>
-  <tbody>
-${TABLE_HTML}
-    <tr class="total"><td colspan="4">Totals</td><td class="num">${GROSS_PROCEEDS_FMT}</td><td class="num">${FEES_FMT}</td><td class="num">${NET_PROCEEDS_FMT}</td><td class="num">${COST_BASIS_FMT}</td><td class="num ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}${GAIN_LOSS_FMT}</td><td></td><td></td></tr>
-  </tbody>
-</table>
+${CSV_NOTE_HTML}
 
 </body>
 </html>
 HTMLEOF_BODY
 }
 
-emit_html | weasyprint -q - "$PDF_OUTPUT"
+emit_html | "${WEASY_CMD[@]}" -q - "$PDF_OUTPUT"
 echo "PDF saved to $PDF_OUTPUT" >&2

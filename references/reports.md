@@ -12,9 +12,19 @@
 |---|---|---|
 | **Plain text** | `--format plain` | **Default for display reports** (balance sheet, portfolio summary, balance history). Show CLI output directly, do not reformat it |
 | **CSV** | `--format csv --output <path>` | **Default for data reports** (capital gains, journal entries). Saves a file the user can open in a spreadsheet |
-| **PDF** | `--machine --format json` piped to `<skill-dir>/scripts/render-*.sh --pdf <path>` | **Only when the user explicitly asks for PDF.** Requires `weasyprint` to be installed |
+| **PDF** | `--machine --format json` piped to `<skill-dir>/scripts/render-*.sh --pdf <path>` | **Only when the user explicitly asks for PDF.** Needs WeasyPrint (see below) |
 
 **Do not** default to PDF. Use plain text or CSV as described above. Only generate PDF when the user specifically requests it.
+
+### PDF prerequisite & fallback
+
+The render scripts need **WeasyPrint**. They locate it robustly — PATH, Homebrew (`/opt/homebrew`, `/usr/local`), pip-user, `python3 -m weasyprint`, or an explicit `CLAMS_WEASYPRINT=/full/path` — and verify it can actually render (a Homebrew install missing from the agent's PATH still works; a broken pip install is skipped).
+
+If no working WeasyPrint is found, the render script **exits with code 3** and prints install guidance. When that happens, do **not** run an unprompted install:
+
+1. Produce the report in a working format instead — `--format plain` (display) or `--format csv --output <path>` (data).
+2. Tell the user PDF needs WeasyPrint and offer the one-time install: `brew install weasyprint` (macOS) or the distro package (Linux). **Never** `pip install` it into system Python — that yields an install that imports but cannot render.
+3. Run the install only with the user's confirmation, then retry the PDF.
 
 **Do not** use `--machine --format json` and then try to display the result yourself. Either pipe it to a render script for PDF, or use `--format plain` for terminal display.
 
@@ -76,6 +86,10 @@ clams reports portfolio-summary --machine --format json \
   | <skill-dir>/scripts/render-portfolio-summary.sh --pdf <output-path>.pdf
 ```
 
+**The PDF is a summary document** — portfolio balance, asset balances, capital-gains summary. It deliberately contains no per-transaction tables (no disposal history, no open-lots list). Portfolio Summary has no CSV form of its own; for full line-item history, export **Journal Entries** or **Capital Gains** as CSV.
+
+> **Presentation-formatting templater.** The render scripts apply *single-field* presentation formatting (sats→BTC, cents→fiat, currency symbol + 2dp, `%`, readable dates) via `scripts/format.sh` and nothing else. They do not compute totals, ratios, charts, or invert signs; multi-field derivations remain the engine's job. Balance-sheet connection rows are filtered to `included_kinds` so the PDF matches the CLI plain-text balance sheet.
+
 ## Capital Gains
 
 Per-disposal realized gains/losses with cost basis, proceeds, fees, ROI, and holding period for tax reporting.
@@ -94,6 +108,8 @@ clams reports capital-gains \
   --machine --format json \
   | <skill-dir>/scripts/render-capital-gains.sh --pdf <output-path>.pdf
 ```
+
+**The PDF is a summary document** — date range, cost-basis method, and the summary totals (gross proceeds, fees, net proceeds, cost basis, realized gain/loss, disposal and lot-selection counts). It deliberately contains no per-disposal line-item table. The **CSV is the complete, authoritative line-item record** — always use CSV for tax filing or anything needing every row. Use the PDF only when the user explicitly wants a presentable summary document.
 
 ## Journal Entries
 

@@ -33,134 +33,97 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-if ! command -v weasyprint &>/dev/null; then
-  echo "Error: weasyprint is required but not installed." >&2
-  echo "Install with: brew install weasyprint" >&2
-  exit 1
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=format.sh
+. "$SCRIPT_DIR/format.sh"
+if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
+  cat >&2 <<'WEASYERR'
+Error: WeasyPrint is required for PDF output, but no working installation was found.
+
+WeasyPrint needs native libraries (Pango, cairo, GDK-PixBuf). Install it once:
+  macOS:  brew install weasyprint
+  Linux:  sudo apt install weasyprint   (or your distro's equivalent)
+
+Do NOT `pip install` WeasyPrint into the system Python — that produces an
+install that imports but cannot render (missing native libraries).
+
+Already installed elsewhere? Point the skill at it and retry:
+  CLAMS_WEASYPRINT=/full/path/to/weasyprint  <skill-dir>/scripts/render-...sh --pdf ...
+
+No PDF needed right now? Generate this report without it:
+  --format plain   (terminal display)      --format csv --output <path>   (data)
+WEASYERR
+  exit 3
 fi
+read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
+
+# ── Templater (presentation-only formatting) ──
+# jq extracts engine values to TSV; bash applies single-field presentation
+# formatting (sats→BTC, cents→fiat) via format.sh and concatenates rows.
+# connection_balances[] is filtered to rows whose .kind is in the top-level
+# .included_kinds — exactly what the CLI plain-text Connection Balances
+# section shows (Income/Expenses connections are excluded there too). This
+# is row selection on an engine field, not arithmetic or sign inversion.
 
 JSON=$(cat)
 
-# ── Extract fields ──
-
-TIMESTAMP=$(echo "$JSON" | jq -r '.data.snapshot_timestamp')
-NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
-INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds | join(", ")')
-
-# Build account tree rows as TSV: depth \t label \t btc_balance \t usd_balance
-#
-# SIGN INVERSION (audit note):
-#   Source field: .data.roots[].balances[].net  (and recursively .children[].balances[].net)
-#   Affected roots: "Liabilities", "Equity", "Income"
-#   NOT affected: "Assets", "Expenses"
-#
-#   In double-entry accounting, Liabilities/Equity/Income accounts have natural credit
-#   balances, so the CLI JSON stores their .net values as negative numbers. The CLI's own
-#   plain text formatter (clams reports balance-sheet) inverts the sign for display,
-#   showing them as positive. We replicate that same inversion here so the PDF matches
-#   the terminal output. No other transformation is applied beyond unit conversion
-#   (satoshis → BTC: ÷100000000, cents → USD: ÷100).
-#
-#   The (if $v == 0 then 0 else $v end) guard prevents -0.00 display when a credit-normal
-#   account has a zero balance (0 × -1 = -0 in IEEE 754 floating point).
-ACCOUNT_ROWS=$(echo "$JSON" | jq -r '
-  def walk_tree(depth; sign):
-    . as $node |
-    ($node.balances // []) as $bals |
-    (($bals | map(select(.asset_code == "BTC")) | .[0].net // "0") | tonumber * sign / 100000000) as $v1 |
-    (($bals | map(select(.asset_code == "USD")) | .[0].net // "0") | tonumber * sign / 100) as $v2 |
-    (if $v1 == 0 then 0 else $v1 end) as $btc |
-    (if $v2 == 0 then 0 else $v2 end) as $usd |
-    "\(depth)\t\($node.label)\t\($btc)\t\($usd)",
-    (($node.children // [])[] | walk_tree(depth + 1; sign));
-  .data.roots[] |
-  (if .label == "Liabilities" or .label == "Equity" or .label == "Income" then -1 else 1 end) as $sign |
-  walk_tree(0; $sign)
-')
-
-# Build connection balance rows as TSV: kind \t label \t btc_balance \t usd_balance
-#
-# SIGN INVERSION (audit note):
-#   Source field: .data.connection_balances[].balances[].net
-#   Affected kinds: "Income", "Equity", "Liabilities"  (keyed on .data.connection_balances[].kind)
-#   NOT affected: "Assets", "Expenses"
-#
-#   Same credit-normal inversion as the account tree above. Each connection_balance entry
-#   has a .kind field. When kind is Income/Equity/Liabilities, the .balances[].net value
-#   is negative in the JSON (credit-normal). We multiply by -1 so the PDF shows the same
-#   positive value the CLI plain text formatter displays. Unit conversion only otherwise.
-CONNECTION_ROWS=$(echo "$JSON" | jq -r '
-  .data.connection_balances[] |
-  (if .kind == "Income" or .kind == "Equity" or .kind == "Liabilities" then -1 else 1 end) as $sign |
-  (.balances // []) as $bals |
-  (($bals | map(select(.asset_code == "BTC")) | .[0].net // "0") | tonumber * $sign / 100000000) as $v1 |
-  (($bals | map(select(.asset_code == "USD")) | .[0].net // "0") | tonumber * $sign / 100) as $v2 |
-  (if $v1 == 0 then 0 else $v1 end) as $btc |
-  (if $v2 == 0 then 0 else $v2 end) as $usd |
-  "\(.kind)\t\(.connection_label)\t\($btc)\t\($usd)"
-')
-
-# Totals per asset
-TOTALS_ROWS=$(echo "$JSON" | jq -r '
-  .data.totals[] |
-  "\(.asset_code)\t\(.debit_total)\t\(.credit_total)\t\(.net)"
-')
-
-# Issues
+SNAPSHOT_TIMESTAMP=$(fmt_ts "$(echo "$JSON" | jq -r '.data.snapshot_timestamp // ""')")
+INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds // [] | join(", ")')
+NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final // false | tostring')
 UNKNOWN_ROWS=$(echo "$JSON" | jq -r '.data.issues.unknown_account_rows // 0')
 
-# Prevent -0.00 display artifacts from floating-point sign inversion
-fix_neg_zero() {
-  local v="$1"
-  case "$v" in
-    -0.00) echo "0.00" ;; -0.00000000) echo "0.00000000" ;; *) echo "$v" ;;
-  esac
-}
-
-# Format timestamp for display
-DISPLAY_DATE=$(echo "$TIMESTAMP" | sed 's/T/ /; s/\+.*$/Z/; s/\.[0-9]*Z/Z/')
-
-# ── Generate account table rows HTML ──
+# Account tree → TSV "depth \t label \t btc_sats \t usd_cents"; depth drives
+# indentation only (CSS custom property + calc — no script value math).
 ACCOUNT_HTML=""
-while IFS=$'\t' read -r depth label btc usd; do
-  [ -z "$depth" ] && continue
-  padding=$(( depth * 20 ))
-  btc_fmt=$(fix_neg_zero "$(printf "%.8f" "$btc")")
-  usd_fmt=$(fix_neg_zero "$(printf "%'.2f" "$usd")")
+while IFS=$'\t' read -r _d _label _btc _usd; do
+  [ -z "$_label" ] && continue
+  [ -n "$_btc" ] && _bd="$(fmt_btc_sats "$_btc")" || _bd=""
+  [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
+  [ "$_d" = "0" ] && _cls="root" || _cls="child"
+  ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"${_cls}\"><td class=\"acct\" style=\"--d:${_d}\">${_label}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '
+  def walk(depth):
+    . as $n | ($n.balances // []) as $b |
+    (($b | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
+    (($b | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
+    "\(depth)\t\($n.label)\t\($btc)\t\($usd)",
+    (($n.children // [])[] | walk(depth + 1));
+  .data.roots[]? | walk(0)
+')"
 
-  if [ "$depth" -eq 0 ]; then
-    ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"root\"><td style=\"padding-left:${padding}px\">${label}</td><td class=\"num\">${btc_fmt}</td><td class=\"num\">${usd_fmt}</td></tr>"
-  else
-    ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"child\"><td style=\"padding-left:${padding}px\">${label}</td><td class=\"num\">${btc_fmt}</td><td class=\"num\">${usd_fmt}</td></tr>"
-  fi
-done <<< "$ACCOUNT_ROWS"
-
-# ── Generate connection balance rows HTML ──
 CONNECTION_HTML=""
-while IFS=$'\t' read -r kind label btc usd; do
-  [ -z "$kind" ] && continue
-  btc_fmt=$(fix_neg_zero "$(printf "%.8f" "$btc")")
-  usd_fmt=$(fix_neg_zero "$(printf "%'.2f" "$usd")")
-  CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${label}</td><td>${kind}</td><td class=\"num\">${btc_fmt}</td><td class=\"num\">${usd_fmt}</td></tr>"
-done <<< "$CONNECTION_ROWS"
+while IFS=$'\t' read -r _label _kind _btc _usd; do
+  [ -z "$_label" ] && continue
+  [ -n "$_btc" ] && _bd="$(fmt_btc_sats "$_btc")" || _bd=""
+  [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
+  CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${_label}</td><td>${_kind}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '
+  (.data.included_kinds // []) as $inc |
+  .data.connection_balances[]? |
+  select(.kind as $k | ($inc | index($k)) != null) |
+  (((.balances // []) | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
+  (((.balances // []) | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
+  "\(.connection_label)\t\(.kind)\t\($btc)\t\($usd)"
+')"
 
-# ── Generate totals HTML ──
+# Totals: format each amount by the row's own asset (BTC=sats, else=cents).
 TOTALS_HTML=""
-while IFS=$'\t' read -r asset_code debit_total credit_total net; do
-  [ -z "$asset_code" ] && continue
-  if [ "$asset_code" = "BTC" ]; then
-    debit_fmt=$(fix_neg_zero "$(printf "%.8f" "$(awk -v n="$debit_total" 'BEGIN { printf "%.8f", n / 100000000 }')")")
-    credit_fmt=$(fix_neg_zero "$(printf "%.8f" "$(awk -v n="$credit_total" 'BEGIN { printf "%.8f", n / 100000000 }')")")
-    net_fmt=$(fix_neg_zero "$(printf "%.8f" "$(awk -v n="$net" 'BEGIN { printf "%.8f", n / 100000000 }')")")
+while IFS=$'\t' read -r _asset _deb _cred _net; do
+  [ -z "$_asset" ] && continue
+  if [ "$_asset" = "BTC" ]; then
+    _deb="$(fmt_btc_sats "$_deb")"; _cred="$(fmt_btc_sats "$_cred")"; _net="$(fmt_btc_sats "$_net")"
   else
-    debit_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$debit_total" 'BEGIN { printf "%.2f", n / 100 }')")")
-    credit_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$credit_total" 'BEGIN { printf "%.2f", n / 100 }')")")
-    net_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$net" 'BEGIN { printf "%.2f", n / 100 }')")")
+    _deb="$(fmt_fiat_cents "$_deb" "$_asset")"; _cred="$(fmt_fiat_cents "$_cred" "$_asset")"; _net="$(fmt_fiat_cents "$_net" "$_asset")"
   fi
-  TOTALS_HTML="${TOTALS_HTML}<tr><td>${asset_code}</td><td class=\"num\">${debit_fmt}</td><td class=\"num\">${credit_fmt}</td><td class=\"num\">${net_fmt}</td></tr>"
-done <<< "$TOTALS_ROWS"
+  TOTALS_HTML="${TOTALS_HTML}<tr><td>${_asset}</td><td class=\"num\">${_deb}</td><td class=\"num\">${_cred}</td><td class=\"num\">${_net}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '.data.totals[]? | "\(.asset_code)\t\(.debit_total)\t\(.credit_total)\t\(.net)"')"
 
-# Non-final warning
+ISSUES_HTML=""
+if [ "$UNKNOWN_ROWS" != "0" ]; then
+  ISSUES_HTML="<div class=\"warning\">${UNKNOWN_ROWS} unknown account row(s) reported by the engine.</div>"
+fi
+
+# Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
@@ -289,6 +252,9 @@ cat <<'HTMLEOF_TOP'
     font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
     font-size: 10px;
   }
+  /* Account-tree indentation: depth comes from the engine traversal as a
+     CSS custom property; the multiply is declarative (no script math). */
+  td.acct { padding-left: calc(var(--d, 0) * 16px); }
 </style>
 </head>
 <body>
@@ -299,7 +265,7 @@ cat <<HTMLEOF_BODY
   <div class="header-left">
     <div class="report-name">Balance Sheet</div>
     <div class="report-meta">
-      ${DISPLAY_DATE}<br>
+      ${SNAPSHOT_TIMESTAMP}<br>
       Included: ${INCLUDED_KINDS}
     </div>
     ${NON_FINAL_HTML}
@@ -357,5 +323,5 @@ ${CONNECTION_HTML}
 HTMLEOF_BODY
 }
 
-emit_html | weasyprint -q - "$PDF_OUTPUT"
+emit_html | "${WEASY_CMD[@]}" -q - "$PDF_OUTPUT"
 echo "PDF saved to $PDF_OUTPUT" >&2

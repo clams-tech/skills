@@ -33,154 +33,100 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-if ! command -v weasyprint &>/dev/null; then
-  echo "Error: weasyprint is required but not installed." >&2
-  echo "Install with: brew install weasyprint" >&2
-  exit 1
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=format.sh
+. "$SCRIPT_DIR/format.sh"
+if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
+  cat >&2 <<'WEASYERR'
+Error: WeasyPrint is required for PDF output, but no working installation was found.
+
+WeasyPrint needs native libraries (Pango, cairo, GDK-PixBuf). Install it once:
+  macOS:  brew install weasyprint
+  Linux:  sudo apt install weasyprint   (or your distro's equivalent)
+
+Do NOT `pip install` WeasyPrint into the system Python — that produces an
+install that imports but cannot render (missing native libraries).
+
+Already installed elsewhere? Point the skill at it and retry:
+  CLAMS_WEASYPRINT=/full/path/to/weasyprint  <skill-dir>/scripts/render-...sh --pdf ...
+
+No PDF needed right now? Generate this report without it:
+  --format plain   (terminal display)      --format csv --output <path>   (data)
+WEASYERR
+  exit 3
 fi
+read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-JSON=$(cat)
-
-# ── Extract all fields ──
-
-TIMESTAMP=$(echo "$JSON" | jq -r '.data.snapshot_timestamp')
-FIAT_CURRENCY=$(echo "$JSON" | jq -r '.data.fiat_valuation.fiat_currency')
-ALGORITHM=$(echo "$JSON" | jq -r '.data.btc_capital_gains.algorithm')
-NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
-
-# Balances
-BTC_BALANCE=$(echo "$JSON" | jq -r '.data.btc_balance | tonumber / 100000000')
-BTC_BALANCE_FIAT=$(echo "$JSON" | jq -r '.data.btc_balance_fiat | tonumber')
-FIAT_VALUATION_TOTAL=$(echo "$JSON" | jq -r '.data.fiat_valuation.total | tonumber')
-
-# All asset balances
-BALANCE_ROWS=$(echo "$JSON" | jq -r '
-  .data.balances[] |
-  "\(.asset_code)\t\(.net)"
+# ── Templater (presentation-only formatting) ──
+# Single jq pass over stdin (the huge input is parsed once; only this small
+# output is held). Line 1 = TSV scalars; remaining lines = "asset<TAB>net"
+# (raw engine .net). Presentation formatting of INDIVIDUAL fields (sats→BTC,
+# cents→fiat, symbol, %, date) is applied via format.sh. NO multi-field
+# derivation, NO computed figures, NO chart.
+_OUT=$(jq -r '
+  ( [
+      .data.snapshot_timestamp // "",
+      .data.fiat_valuation.fiat_currency // "",
+      .data.btc_capital_gains.algorithm // "",
+      (.data.non_final // false | tostring),
+      .data.btc_balance // "",
+      .data.btc_balance_fiat // "",
+      .data.fiat_valuation.total // "",
+      (.data.btc_capital_gains.sale_count // 0 | tostring),
+      .data.btc_capital_gains.total_quantity_sold // "",
+      .data.btc_capital_gains.total_proceeds_fiat // "",
+      .data.btc_capital_gains.total_cost_basis_fiat // "",
+      .data.btc_capital_gains.realized_gain_fiat // "",
+      .data.btc_capital_gains.realized_gain_percentage // "",
+      .data.btc_capital_gains.unrealized_gain_fiat // "",
+      .data.btc_capital_gains.unrealized_gain_percentage // "",
+      .data.btc_capital_gains.unrealized_cost_basis_fiat // "",
+      .data.btc_capital_gains.total_cost_basis_fiat_including_open // "",
+      .data.btc_capital_gains.average_cost_basis_fiat_per_btc // "",
+      .data.btc_capital_gains.total_gain_fiat // ""
+    ] | @tsv ),
+  ( .data.balances[]? | "\(.asset_code)\t\(.net)" )
 ')
 
-# Capital gains summary
-SALE_COUNT=$(echo "$JSON" | jq -r '.data.btc_capital_gains.sale_count')
-TOTAL_QTY_SOLD=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_quantity_sold | tonumber / 100000000')
-TOTAL_PROCEEDS=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_proceeds_fiat | tonumber')
-TOTAL_COST_BASIS=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_cost_basis_fiat | tonumber')
-REALIZED_GAIN=$(echo "$JSON" | jq -r '.data.btc_capital_gains.realized_gain_fiat | tonumber')
-REALIZED_PCT=$(echo "$JSON" | jq -r '.data.btc_capital_gains.realized_gain_percentage | tonumber')
-UNREALIZED_GAIN=$(echo "$JSON" | jq -r '.data.btc_capital_gains.unrealized_gain_fiat | tonumber')
-UNREALIZED_PCT=$(echo "$JSON" | jq -r '.data.btc_capital_gains.unrealized_gain_percentage | tonumber')
-UNREALIZED_COST_BASIS=$(echo "$JSON" | jq -r '.data.btc_capital_gains.unrealized_cost_basis_fiat | tonumber')
-TOTAL_COST_BASIS_ALL=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_cost_basis_fiat_including_open | tonumber')
-AVG_COST_BASIS=$(echo "$JSON" | jq -r '.data.btc_capital_gains.average_cost_basis_fiat_per_btc | tonumber')
-TOTAL_GAIN=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_gain_fiat | tonumber')
+IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
+  BTC_BALANCE BTC_BALANCE_FIAT FIAT_VALUATION_TOTAL SALE_COUNT \
+  TOTAL_QTY_SOLD TOTAL_PROCEEDS TOTAL_COST_BASIS REALIZED_GAIN REALIZED_PCT \
+  UNREALIZED_GAIN UNREALIZED_PCT UNREALIZED_COST_BASIS TOTAL_COST_BASIS_ALL \
+  AVG_COST_BASIS TOTAL_GAIN <<< "$(printf '%s\n' "$_OUT" | head -n 1)"
 
-# Disposals
-TOTAL_DISPOSALS=$(echo "$JSON" | jq '.data.btc_capital_gains.disposals | length')
-DISPOSAL_ROWS=$(echo "$JSON" | jq -r '
-  .data.btc_capital_gains.disposals[] |
-  (.timestamp | split("T")[0]) as $date |
-  (.quantity_disposed | tonumber / 100000000) as $qty |
-  (.proceeds_fiat | tonumber) as $proceeds |
-  (.cost_basis_fiat | tonumber) as $cb |
-  (.realized_gain_fiat | tonumber) as $gain |
-  "\($date)\t\(.event_kind)\t\($qty)\t\($proceeds)\t\($cb)\t\($gain)"
-')
-
-# Open lots
-MAX_LOTS=25
-TOTAL_LOTS=$(echo "$JSON" | jq '.data.btc_capital_gains.open_lots | length')
-LOT_ROWS=$(echo "$JSON" | jq -r --argjson max "$MAX_LOTS" '
-  .data.btc_capital_gains.open_lots | sort_by(.acquired_at) | .[-$max:][] |
-  (.acquired_at | split("T")[0]) as $date |
-  (.quantity | tonumber / 100000000) as $qty |
-  (.cost_basis_fiat | tonumber) as $cost |
-  "\(.lot_id)\t\($date)\t\($qty)\t\($cost)"
-')
-
-# Prevent -0.00 display artifacts from floating-point arithmetic
-fix_neg_zero() {
-  local v="$1"
-  case "$v" in
-    -0.00) echo "0.00" ;; -0.00000000) echo "0.00000000" ;; *) echo "$v" ;;
-  esac
-}
-
-# ── Format display values ──
-
-DISPLAY_DATE=$(echo "$TIMESTAMP" | sed 's/T/ /; s/\+.*$/Z/; s/\.[0-9]*Z/Z/')
-BTC_FMT=$(printf "%.8f" "$BTC_BALANCE")
-BTC_FIAT_FMT=$(printf "%'.2f" "$BTC_BALANCE_FIAT")
-FIAT_TOTAL_FMT=$(printf "%'.2f" "$FIAT_VALUATION_TOTAL")
-QTY_SOLD_FMT=$(printf "%.8f" "$TOTAL_QTY_SOLD")
-PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_PROCEEDS")
-COST_BASIS_FMT=$(printf "%'.2f" "$TOTAL_COST_BASIS")
-REALIZED_FMT=$(printf "%'.2f" "$REALIZED_GAIN")
-REALIZED_PCT_FMT=$(printf "%.2f" "$REALIZED_PCT")
-UNREALIZED_FMT=$(printf "%'.2f" "$UNREALIZED_GAIN")
-UNREALIZED_PCT_FMT=$(printf "%.2f" "$UNREALIZED_PCT")
-UNREALIZED_CB_FMT=$(printf "%'.2f" "$UNREALIZED_COST_BASIS")
-TOTAL_CB_ALL_FMT=$(printf "%'.2f" "$TOTAL_COST_BASIS_ALL")
-AVG_CB_FMT=$(printf "%'.2f" "$AVG_COST_BASIS")
-TOTAL_GAIN_FMT=$(printf "%'.2f" "$TOTAL_GAIN")
-
-# Gain/loss CSS classes
-gain_class() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "positive" : "negative" }'; }
-REALIZED_CLASS=$(gain_class "$REALIZED_GAIN")
-UNREALIZED_CLASS=$(gain_class "$UNREALIZED_GAIN")
-TOTAL_GAIN_CLASS=$(gain_class "$TOTAL_GAIN")
-
-# Sign prefix for gains
-sign_prefix() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "+" : "" }'; }
-REALIZED_SIGN=$(sign_prefix "$REALIZED_GAIN")
-UNREALIZED_SIGN=$(sign_prefix "$UNREALIZED_GAIN")
-TOTAL_GAIN_SIGN=$(sign_prefix "$TOTAL_GAIN")
-
-# Chart: Cost Basis vs Market Value bar widths
-read -r CB_BAR_W MV_BAR_W CB_LABEL_X MV_LABEL_X MV_BAR_COLOR < <(
-  awk -v cb="$UNREALIZED_COST_BASIS" -v mv="$BTC_BALANCE_FIAT" -v gain="$UNREALIZED_GAIN" 'BEGIN {
-    maxw=300; bx=110; pad=8
-    m=(cb>mv)?cb:mv
-    if (m>0) { cbw=cb/m*maxw; mvw=mv/m*maxw } else { cbw=0; mvw=0 }
-    printf "%.1f %.1f %.1f %.1f %s\n", cbw, mvw, bx+cbw+pad, bx+mvw+pad, (gain>=0)?"#15803d":"#8f0709"
-  }'
-)
-
-# ── Generate balance rows HTML ──
+# Asset-balance rows: format each row's net by its own asset (single-field
+# presentation — BTC: sats→BTC; other: fiat minor units→major).
 BALANCE_HTML=""
-while IFS=$'\t' read -r asset_code net; do
-  [ -z "$asset_code" ] && continue
-  net_num=$(echo "$net" | awk '{printf "%.0f", $1}')
-  if [ "$asset_code" = "BTC" ]; then
-    net_fmt=$(fix_neg_zero "$(awk -v n="$net" 'BEGIN { printf "%.8f", n / 100000000 }')")
-    BALANCE_HTML="${BALANCE_HTML}<tr><td>${asset_code}</td><td class=\"num\">${net_fmt}</td></tr>"
+while IFS=$'\t' read -r _asset _net; do
+  [ -z "$_asset" ] && continue
+  if [ "$_asset" = "BTC" ]; then
+    _disp="$(fmt_btc_sats "$_net") BTC"
   else
-    net_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$net" 'BEGIN { printf "%.2f", n / 100 }')")")
-    BALANCE_HTML="${BALANCE_HTML}<tr><td>${asset_code}</td><td class=\"num\">${net_fmt}</td></tr>"
+    _disp="$(fmt_fiat_cents "$_net" "$_asset")"
   fi
-done <<< "$BALANCE_ROWS"
+  BALANCE_HTML="${BALANCE_HTML}<tr><td>${_asset}</td><td class=\"num\">${_disp}</td></tr>"
+done <<< "$(printf '%s\n' "$_OUT" | tail -n +2)"
 
-# ── Generate disposal rows HTML ──
-DISPOSAL_HTML=""
-while IFS=$'\t' read -r date event_kind qty proceeds cb gain; do
-  [ -z "$date" ] && continue
-  qty_fmt=$(printf "%.8f" "$qty")
-  proceeds_fmt=$(printf "%'.2f" "$proceeds")
-  cb_fmt=$(printf "%'.2f" "$cb")
-  gain_fmt=$(printf "%'.2f" "$gain")
-  gain_cls=$(gain_class "$gain")
-  gain_sign=$(sign_prefix "$gain")
-  DISPOSAL_HTML="${DISPOSAL_HTML}<tr><td>${date}</td><td>${event_kind}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">\$${proceeds_fmt}</td><td class=\"num\">\$${cb_fmt}</td><td class=\"num ${gain_cls}\">${gain_sign}\$${gain_fmt}</td></tr>"
-done <<< "$DISPOSAL_ROWS"
+# ── Presentation formatting (single-field, fixed-constant; see format.sh) ──
+SNAPSHOT_TIMESTAMP=$(fmt_ts "$SNAPSHOT_TIMESTAMP")
+BTC_BALANCE=$(fmt_btc_sats "$BTC_BALANCE")
+BTC_BALANCE_FIAT=$(fmt_fiat_major "$BTC_BALANCE_FIAT" "$FIAT_CURRENCY")
+FIAT_VALUATION_TOTAL=$(fmt_fiat_major "$FIAT_VALUATION_TOTAL" "$FIAT_CURRENCY")
+TOTAL_QTY_SOLD=$(fmt_btc_sats "$TOTAL_QTY_SOLD")
+TOTAL_PROCEEDS=$(fmt_fiat_major "$TOTAL_PROCEEDS" "$FIAT_CURRENCY")
+TOTAL_COST_BASIS=$(fmt_fiat_major "$TOTAL_COST_BASIS" "$FIAT_CURRENCY")
+REALIZED_GAIN=$(fmt_fiat_major "$REALIZED_GAIN" "$FIAT_CURRENCY")
+REALIZED_PCT=$(fmt_pct "$REALIZED_PCT")
+UNREALIZED_GAIN=$(fmt_fiat_major "$UNREALIZED_GAIN" "$FIAT_CURRENCY")
+UNREALIZED_PCT=$(fmt_pct "$UNREALIZED_PCT")
+UNREALIZED_COST_BASIS=$(fmt_fiat_major "$UNREALIZED_COST_BASIS" "$FIAT_CURRENCY")
+TOTAL_COST_BASIS_ALL=$(fmt_fiat_major "$TOTAL_COST_BASIS_ALL" "$FIAT_CURRENCY")
+AVG_COST_BASIS=$(fmt_fiat_major "$AVG_COST_BASIS" "$FIAT_CURRENCY")
+TOTAL_GAIN=$(fmt_fiat_major "$TOTAL_GAIN" "$FIAT_CURRENCY")
 
-# ── Generate open lots table rows HTML ──
-LOTS_HTML=""
-while IFS=$'\t' read -r lot_id acquired qty cost; do
-  [ -z "$lot_id" ] && continue
-  qty_fmt=$(printf "%.8f" "$qty")
-  cost_fmt=$(printf "%'.2f" "$cost")
-  LOTS_HTML="${LOTS_HTML}<tr><td>${lot_id}</td><td>${acquired}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">\$${cost_fmt}</td></tr>"
-done <<< "$LOT_ROWS"
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record, export Journal Entries or Capital Gains as CSV (clams reports journal-entries --format csv; clams reports capital-gains --format csv).</p>'
 
-# Non-final warning
+# Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
@@ -392,11 +338,21 @@ cat <<'HTMLEOF_TOP'
     font-size: 9px;
   }
   tbody tr:nth-child(even) td { background: #fafaf8; }
+  /* Document-level disclaimer, pinned to the foot of the page just above
+     the running "Generated by Clams" footer (position:fixed is relative to
+     the page content box; the @page margin boxes sit below it). */
   .note {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #ffffff;
+    border-top: 1px solid #e0ddd6;
+    padding-top: 6px;
     color: #646663;
     font-size: 8px;
-    margin-bottom: 4px;
     font-style: italic;
+    line-height: 1.5;
   }
   /* ── Balances mini table ── */
   .balances-table { width: auto; min-width: 200px; }
@@ -412,7 +368,7 @@ cat <<HTMLEOF_BODY
   <div class="header-left">
     <div class="report-name">Portfolio Summary</div>
     <div class="report-meta">
-      ${DISPLAY_DATE}<br>
+      ${SNAPSHOT_TIMESTAMP}<br>
       Cost basis method: ${ALGORITHM} &middot; Currency: ${FIAT_CURRENCY}
     </div>
     ${NON_FINAL_HTML}
@@ -438,12 +394,12 @@ cat <<HTMLEOF_BODY
 <div class="hero">
   <div class="hero-metric">
     <div class="hero-label">BTC Holdings</div>
-    <div class="hero-value">${BTC_FMT}</div>
-    <div class="hero-sub">\$${BTC_FIAT_FMT} ${FIAT_CURRENCY} market value</div>
+    <div class="hero-value">${BTC_BALANCE}</div>
+    <div class="hero-sub">${BTC_BALANCE_FIAT} market value</div>
   </div>
   <div class="hero-metric">
     <div class="hero-label">Net Portfolio Value (${FIAT_CURRENCY})</div>
-    <div class="hero-value">\$${FIAT_TOTAL_FMT}</div>
+    <div class="hero-value">${FIAT_VALUATION_TOTAL}</div>
     <div class="hero-sub">All assets &amp; liabilities at market</div>
   </div>
 </div>
@@ -462,72 +418,37 @@ ${BALANCE_HTML}
 <div class="gains">
   <div class="gain">
     <div class="gain-label">Realized Gain/Loss</div>
-    <div class="gain-value ${REALIZED_CLASS}">${REALIZED_SIGN}\$${REALIZED_FMT}</div>
-    <div class="gain-pct">${REALIZED_SIGN}${REALIZED_PCT_FMT}%</div>
+    <div class="gain-value">${REALIZED_GAIN}</div>
+    <div class="gain-pct">${REALIZED_PCT}</div>
   </div>
   <div class="gain">
     <div class="gain-label">Unrealized Gain/Loss</div>
-    <div class="gain-value ${UNREALIZED_CLASS}">${UNREALIZED_SIGN}\$${UNREALIZED_FMT}</div>
-    <div class="gain-pct">${UNREALIZED_SIGN}${UNREALIZED_PCT_FMT}%</div>
+    <div class="gain-value">${UNREALIZED_GAIN}</div>
+    <div class="gain-pct">${UNREALIZED_PCT}</div>
   </div>
   <div class="gain">
     <div class="gain-label">Total Gain/Loss</div>
-    <div class="gain-value ${TOTAL_GAIN_CLASS}">${TOTAL_GAIN_SIGN}\$${TOTAL_GAIN_FMT}</div>
+    <div class="gain-value">${TOTAL_GAIN}</div>
   </div>
-</div>
-
-<h2>Cost Basis vs Market Value</h2>
-<div class="bar-chart">
-<svg xmlns="http://www.w3.org/2000/svg" width="500" height="52" style="display:block">
-  <text x="0" y="16" font-size="8" font-family="'SF Mono','Menlo','Consolas',monospace" fill="#646663" font-weight="500" letter-spacing="0.03em">COST BASIS</text>
-  <rect x="110" y="6" width="${CB_BAR_W}" height="14" rx="1" fill="#c8c5be"/>
-  <text x="${CB_LABEL_X}" y="17" font-size="9" font-family="'SF Mono','Menlo','Consolas',monospace" fill="#212420" font-weight="600">\$${UNREALIZED_CB_FMT}</text>
-  <text x="0" y="40" font-size="8" font-family="'SF Mono','Menlo','Consolas',monospace" fill="#646663" font-weight="500" letter-spacing="0.03em">MKT VALUE</text>
-  <rect x="110" y="30" width="${MV_BAR_W}" height="14" rx="1" fill="${MV_BAR_COLOR}"/>
-  <text x="${MV_LABEL_X}" y="41" font-size="9" font-family="'SF Mono','Menlo','Consolas',monospace" fill="#212420" font-weight="600">\$${BTC_FIAT_FMT}</text>
-</svg>
 </div>
 
 <h2>Cost Basis Detail</h2>
 <div class="details">
   <div class="detail"><span class="detail-label">Disposals</span><span class="detail-value">${SALE_COUNT}</span></div>
-  <div class="detail"><span class="detail-label">Total Sold</span><span class="detail-value">${QTY_SOLD_FMT} BTC</span></div>
-  <div class="detail"><span class="detail-label">Total Proceeds</span><span class="detail-value">\$${PROCEEDS_FMT}</span></div>
-  <div class="detail"><span class="detail-label">Cost Basis (Sold)</span><span class="detail-value">\$${COST_BASIS_FMT}</span></div>
-  <div class="detail"><span class="detail-label">Cost Basis (Open)</span><span class="detail-value">\$${UNREALIZED_CB_FMT}</span></div>
-  <div class="detail"><span class="detail-label">Total Cost Basis</span><span class="detail-value">\$${TOTAL_CB_ALL_FMT}</span></div>
-  <div class="detail"><span class="detail-label">Avg Cost / BTC</span><span class="detail-value">\$${AVG_CB_FMT}</span></div>
+  <div class="detail"><span class="detail-label">Total Sold</span><span class="detail-value">${TOTAL_QTY_SOLD} BTC</span></div>
+  <div class="detail"><span class="detail-label">Total Proceeds</span><span class="detail-value">${TOTAL_PROCEEDS}</span></div>
+  <div class="detail"><span class="detail-label">Cost Basis (Sold)</span><span class="detail-value">${TOTAL_COST_BASIS}</span></div>
+  <div class="detail"><span class="detail-label">Cost Basis (Open)</span><span class="detail-value">${UNREALIZED_COST_BASIS}</span></div>
+  <div class="detail"><span class="detail-label">Total Cost Basis</span><span class="detail-value">${TOTAL_COST_BASIS_ALL}</span></div>
+  <div class="detail"><span class="detail-label">Avg Cost / BTC</span><span class="detail-value">${AVG_COST_BASIS}</span></div>
 </div>
 
-$(if [ "$TOTAL_DISPOSALS" -gt 0 ]; then
-cat <<DISPOSAL_SECTION
-<h2>Disposal History (${TOTAL_DISPOSALS} events)</h2>
-<table>
-  <thead>
-    <tr><th>Date</th><th>Type</th><th class="num">Quantity (BTC)</th><th class="num">Proceeds</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th></tr>
-  </thead>
-  <tbody>
-${DISPOSAL_HTML}
-  </tbody>
-</table>
-DISPOSAL_SECTION
-fi)
-
-<h2>Open Lots (${TOTAL_LOTS} total)</h2>
-$(if [ "$TOTAL_LOTS" -gt "$MAX_LOTS" ]; then echo "<p class=\"note\">Showing ${MAX_LOTS} most recent of ${TOTAL_LOTS}</p>"; fi)
-<table>
-  <thead>
-    <tr><th>Lot</th><th>Acquired</th><th class="num">Quantity (BTC)</th><th class="num">Cost Basis (${FIAT_CURRENCY})</th></tr>
-  </thead>
-  <tbody>
-${LOTS_HTML}
-  </tbody>
-</table>
+${CSV_NOTE_HTML}
 
 </body>
 </html>
 HTMLEOF_BODY
 }
 
-emit_html | weasyprint -q - "$PDF_OUTPUT"
+emit_html | "${WEASY_CMD[@]}" -q - "$PDF_OUTPUT"
 echo "PDF saved to $PDF_OUTPUT" >&2
