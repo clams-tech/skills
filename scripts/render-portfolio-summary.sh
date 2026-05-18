@@ -124,7 +124,7 @@ TOTAL_COST_BASIS_ALL=$(fmt_fiat_major "$TOTAL_COST_BASIS_ALL" "$FIAT_CURRENCY")
 AVG_COST_BASIS=$(fmt_fiat_major "$AVG_COST_BASIS" "$FIAT_CURRENCY")
 TOTAL_GAIN=$(fmt_fiat_major "$TOTAL_GAIN" "$FIAT_CURRENCY")
 
-CSV_NOTE_HTML='<p class="note">This PDF is a summary document. Figures are Clams engine values with presentation formatting only (no totals or derivations computed by the skill). For the complete line-item record, export Journal Entries or Capital Gains as CSV (clams reports journal-entries --format csv; clams reports capital-gains --format csv).</p>'
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record, export Journal Entries or Capital Gains as CSV (clams reports journal-entries --format csv; clams reports capital-gains --format csv).</p>'
 
 # Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""

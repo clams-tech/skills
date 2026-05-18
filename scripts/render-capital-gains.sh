@@ -107,7 +107,7 @@ if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
 fi
 
-CSV_NOTE_HTML='<p class="note">This PDF is a summary document. Figures are Clams engine values with presentation formatting only (no totals or derivations computed by the skill). For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
 
 emit_html() {
 cat <<'HTMLEOF_TOP'
