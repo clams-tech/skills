@@ -97,15 +97,14 @@ DISPOSAL_ROWS=$(echo "$JSON" | jq -r '
   (.cost_basis_fiat | tonumber) as $cb |
   (.realized_gain_fiat | tonumber) as $gain |
   (.holding_period_days) as $days |
-  (if .holding_period_days >= 365 then "LT" else "ST" end) as $holding |
   (.sale_connections // [] | map(.connection_label) | join(", ")) as $conn |
-  "\($sale_date)\t\($purchase_date)\t\($qty)\t\($gross)\t\($fees)\t\($net)\t\($cb)\t\($gain)\t\($days)\t\($holding)\t\($conn)"
+  "\($sale_date)\t\($purchase_date)\t\($qty)\t\($gross)\t\($fees)\t\($net)\t\($cb)\t\($gain)\t\($days)\t\($conn)"
 ')
 
 # ── Generate table rows HTML ──
 
 TABLE_HTML=""
-while IFS=$'\t' read -r sale_date purchase_date qty gross fees net cb gain days holding conn; do
+while IFS=$'\t' read -r sale_date purchase_date qty gross fees net cb gain days conn; do
   [ -z "$sale_date" ] && continue
   qty_fmt=$(printf "%.8f" "$qty")
   gross_fmt=$(printf "%'.2f" "$gross")
@@ -115,7 +114,7 @@ while IFS=$'\t' read -r sale_date purchase_date qty gross fees net cb gain days 
   gain_fmt=$(printf "%'.2f" "$gain")
   gl_class=$(gain_class "$gain")
   gl_sign=$(sign_prefix "$gain")
-  TABLE_HTML="${TABLE_HTML}<tr><td>${sale_date}</td><td>${purchase_date}</td><td>${conn}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">${gross_fmt}</td><td class=\"num\">${fees_fmt}</td><td class=\"num\">${net_fmt}</td><td class=\"num\">${cb_fmt}</td><td class=\"num ${gl_class}\">${gl_sign}${gain_fmt}</td><td class=\"num\">${days}</td><td>${holding}</td></tr>"
+  TABLE_HTML="${TABLE_HTML}<tr><td>${sale_date}</td><td>${purchase_date}</td><td>${conn}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">${gross_fmt}</td><td class=\"num\">${fees_fmt}</td><td class=\"num\">${net_fmt}</td><td class=\"num\">${cb_fmt}</td><td class=\"num ${gl_class}\">${gl_sign}${gain_fmt}</td><td class=\"num\">${days}</td></tr>"
 done <<< "$DISPOSAL_ROWS"
 
 # Non-final warning
@@ -360,11 +359,11 @@ cat <<HTMLEOF_BODY
 <h2>Lot Selections</h2>
 <table>
   <thead>
-    <tr><th>Sold</th><th>Acquired</th><th>Connection</th><th class="num">Qty (BTC)</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th><th class="num">Days</th><th>Term</th></tr>
+    <tr><th>Sold</th><th>Acquired</th><th>Connection</th><th class="num">Qty (BTC)</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th><th class="num">Days</th></tr>
   </thead>
   <tbody>
 ${TABLE_HTML}
-    <tr class="total"><td colspan="4">Totals</td><td class="num">${GROSS_PROCEEDS_FMT}</td><td class="num">${FEES_FMT}</td><td class="num">${NET_PROCEEDS_FMT}</td><td class="num">${COST_BASIS_FMT}</td><td class="num ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}${GAIN_LOSS_FMT}</td><td></td><td></td></tr>
+    <tr class="total"><td colspan="4">Totals</td><td class="num">${GROSS_PROCEEDS_FMT}</td><td class="num">${FEES_FMT}</td><td class="num">${NET_PROCEEDS_FMT}</td><td class="num">${COST_BASIS_FMT}</td><td class="num ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}${GAIN_LOSS_FMT}</td><td></td></tr>
   </tbody>
 </table>
 
