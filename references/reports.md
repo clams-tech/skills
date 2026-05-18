@@ -72,6 +72,8 @@ clams reports portfolio-summary --machine --format json \
   | <skill-dir>/scripts/render-portfolio-summary.sh --pdf <output-path>.pdf
 ```
 
+In the PDF, the disposal-history and open-lots tables are each capped at the 100 most recent entries (with a "showing N of M" note). All summary figures still reflect the full dataset.
+
 ## Capital Gains
 
 Requires `--start` and `--end` (RFC3339 UTC timestamps). Does **not** support `--format plain`.
@@ -88,6 +90,8 @@ clams reports capital-gains \
   --machine --format json \
   | <skill-dir>/scripts/render-capital-gains.sh --pdf <output-path>.pdf
 ```
+
+**The PDF is a capped summary, not the full record.** Its lot-selection table shows only the first 100 rows (with a "showing first 100 of N" note); the totals row still reflects every disposal. The **CSV is the complete, authoritative line-item export** — use CSV for tax filing or anything needing every row. Only use the PDF when the user explicitly wants a branded summary document.
 
 ## Journal Entries
 

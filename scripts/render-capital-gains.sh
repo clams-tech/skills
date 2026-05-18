@@ -85,9 +85,18 @@ TOTAL_GL_SIGN=$(sign_prefix "$TOTAL_GAIN_LOSS")
 GAIN_PCT_SIGN=$(sign_prefix "$TOTAL_GAIN_PCT")
 
 # ── Build disposal rows ──
+# Cap the rendered table. The full row set (one row per lot selection) is
+# unbounded and can be tens of thousands of rows on high-volume wallets,
+# which makes WeasyPrint produce an enormous, unusable PDF. The complete
+# line-item detail is available via the CSV export; the PDF shows a capped
+# table plus full totals (the Totals row below uses .data.summary, not the
+# rendered rows, so it always reflects the entire dataset).
 
-DISPOSAL_ROWS=$(echo "$JSON" | jq -r '
-  .data.rows[] |
+MAX_ROWS=100
+TOTAL_ROWS=$(echo "$JSON" | jq '.data.rows | length')
+
+DISPOSAL_ROWS=$(echo "$JSON" | jq -r --argjson max "$MAX_ROWS" '
+  .data.rows[0:$max][] |
   (.sale_timestamp | split("T")[0]) as $sale_date |
   (.purchase_timestamp | split("T")[0]) as $purchase_date |
   (.quantity_disposed | tonumber / 100000000) as $qty |
@@ -122,6 +131,12 @@ done <<< "$DISPOSAL_ROWS"
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
+fi
+
+# Row truncation note
+ROW_NOTE_HTML=""
+if [ "$TOTAL_ROWS" -gt "$MAX_ROWS" ]; then
+  ROW_NOTE_HTML="<p class=\"note\">Showing first ${MAX_ROWS} of ${TOTAL_ROWS} lot selections. Totals below reflect all ${TOTAL_ROWS}. Export as CSV for the complete line-item detail.</p>"
 fi
 
 emit_html() {
@@ -190,6 +205,12 @@ cat <<'HTMLEOF_TOP'
     font-size: 9px;
     padding: 4px 8px;
     margin-top: 8px;
+  }
+  .note {
+    color: #646663;
+    font-size: 8px;
+    margin: 0 0 4px;
+    font-style: italic;
   }
   /* ── Section labels ── */
   h2 {
@@ -358,6 +379,7 @@ cat <<HTMLEOF_BODY
 </div>
 
 <h2>Lot Selections</h2>
+${ROW_NOTE_HTML}
 <table>
   <thead>
     <tr><th>Sold</th><th>Acquired</th><th>Connection</th><th class="num">Qty (BTC)</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th><th class="num">Days</th><th>Term</th></tr>

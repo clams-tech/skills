@@ -74,9 +74,13 @@ AVG_COST_BASIS=$(echo "$JSON" | jq -r '.data.btc_capital_gains.average_cost_basi
 TOTAL_GAIN=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_gain_fiat | tonumber')
 
 # Disposals
+# Cap the rendered disposal table the same way open lots are capped below.
+# The disposal list is unbounded and can be tens of thousands of events on
+# high-volume wallets, which makes WeasyPrint produce an enormous PDF.
+MAX_DISPOSALS=100
 TOTAL_DISPOSALS=$(echo "$JSON" | jq '.data.btc_capital_gains.disposals | length')
-DISPOSAL_ROWS=$(echo "$JSON" | jq -r '
-  .data.btc_capital_gains.disposals[] |
+DISPOSAL_ROWS=$(echo "$JSON" | jq -r --argjson max "$MAX_DISPOSALS" '
+  .data.btc_capital_gains.disposals | sort_by(.timestamp) | .[-$max:][] |
   (.timestamp | split("T")[0]) as $date |
   (.quantity_disposed | tonumber / 100000000) as $qty |
   (.proceeds_fiat | tonumber) as $proceeds |
@@ -170,6 +174,12 @@ while IFS=$'\t' read -r date event_kind qty proceeds cb gain; do
   gain_sign=$(sign_prefix "$gain")
   DISPOSAL_HTML="${DISPOSAL_HTML}<tr><td>${date}</td><td>${event_kind}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">\$${proceeds_fmt}</td><td class=\"num\">\$${cb_fmt}</td><td class=\"num ${gain_cls}\">${gain_sign}\$${gain_fmt}</td></tr>"
 done <<< "$DISPOSAL_ROWS"
+
+# Disposal truncation note (mirrors the open-lots note)
+DISPOSAL_NOTE_HTML=""
+if [ "$TOTAL_DISPOSALS" -gt "$MAX_DISPOSALS" ]; then
+  DISPOSAL_NOTE_HTML="<p class=\"note\">Showing ${MAX_DISPOSALS} most recent of ${TOTAL_DISPOSALS}</p>"
+fi
 
 # ── Generate open lots table rows HTML ──
 LOTS_HTML=""
@@ -502,6 +512,7 @@ ${BALANCE_HTML}
 $(if [ "$TOTAL_DISPOSALS" -gt 0 ]; then
 cat <<DISPOSAL_SECTION
 <h2>Disposal History (${TOTAL_DISPOSALS} events)</h2>
+${DISPOSAL_NOTE_HTML}
 <table>
   <thead>
     <tr><th>Date</th><th>Type</th><th class="num">Quantity (BTC)</th><th class="num">Proceeds</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th></tr>
