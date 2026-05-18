@@ -73,32 +73,13 @@ TOTAL_COST_BASIS_ALL=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_cost_
 AVG_COST_BASIS=$(echo "$JSON" | jq -r '.data.btc_capital_gains.average_cost_basis_fiat_per_btc | tonumber')
 TOTAL_GAIN=$(echo "$JSON" | jq -r '.data.btc_capital_gains.total_gain_fiat | tonumber')
 
-# Disposals
-# Cap the rendered disposal table the same way open lots are capped below.
-# The disposal list is unbounded and can be tens of thousands of events on
-# high-volume wallets, which makes WeasyPrint produce an enormous PDF.
-MAX_DISPOSALS=100
-TOTAL_DISPOSALS=$(echo "$JSON" | jq '.data.btc_capital_gains.disposals | length')
-DISPOSAL_ROWS=$(echo "$JSON" | jq -r --argjson max "$MAX_DISPOSALS" '
-  .data.btc_capital_gains.disposals | sort_by(.timestamp) | .[-$max:][] |
-  (.timestamp | split("T")[0]) as $date |
-  (.quantity_disposed | tonumber / 100000000) as $qty |
-  (.proceeds_fiat | tonumber) as $proceeds |
-  (.cost_basis_fiat | tonumber) as $cb |
-  (.realized_gain_fiat | tonumber) as $gain |
-  "\($date)\t\(.event_kind)\t\($qty)\t\($proceeds)\t\($cb)\t\($gain)"
-')
-
-# Open lots
-MAX_LOTS=25
-TOTAL_LOTS=$(echo "$JSON" | jq '.data.btc_capital_gains.open_lots | length')
-LOT_ROWS=$(echo "$JSON" | jq -r --argjson max "$MAX_LOTS" '
-  .data.btc_capital_gains.open_lots | sort_by(.acquired_at) | .[-$max:][] |
-  (.acquired_at | split("T")[0]) as $date |
-  (.quantity | tonumber / 100000000) as $qty |
-  (.cost_basis_fiat | tonumber) as $cost |
-  "\(.lot_id)\t\($date)\t\($qty)\t\($cost)"
-')
+# ── PDF is a summary document ──
+# Disposal-history and open-lots rows are deliberately not rendered. Both
+# lists are unbounded (tens of thousands of rows on high-volume wallets),
+# and line-item data belongs in a CSV export, not a presentation PDF. This
+# PDF carries summary figures only. Portfolio Summary has no CSV form of
+# its own; the underlying line-item detail lives in the Journal Entries and
+# Capital Gains CSV exports.
 
 # Prevent -0.00 display artifacts from floating-point arithmetic
 fix_neg_zero() {
@@ -162,33 +143,8 @@ while IFS=$'\t' read -r asset_code net; do
   fi
 done <<< "$BALANCE_ROWS"
 
-# ── Generate disposal rows HTML ──
-DISPOSAL_HTML=""
-while IFS=$'\t' read -r date event_kind qty proceeds cb gain; do
-  [ -z "$date" ] && continue
-  qty_fmt=$(printf "%.8f" "$qty")
-  proceeds_fmt=$(printf "%'.2f" "$proceeds")
-  cb_fmt=$(printf "%'.2f" "$cb")
-  gain_fmt=$(printf "%'.2f" "$gain")
-  gain_cls=$(gain_class "$gain")
-  gain_sign=$(sign_prefix "$gain")
-  DISPOSAL_HTML="${DISPOSAL_HTML}<tr><td>${date}</td><td>${event_kind}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">\$${proceeds_fmt}</td><td class=\"num\">\$${cb_fmt}</td><td class=\"num ${gain_cls}\">${gain_sign}\$${gain_fmt}</td></tr>"
-done <<< "$DISPOSAL_ROWS"
-
-# Disposal truncation note (mirrors the open-lots note)
-DISPOSAL_NOTE_HTML=""
-if [ "$TOTAL_DISPOSALS" -gt "$MAX_DISPOSALS" ]; then
-  DISPOSAL_NOTE_HTML="<p class=\"note\">Showing ${MAX_DISPOSALS} most recent of ${TOTAL_DISPOSALS}</p>"
-fi
-
-# ── Generate open lots table rows HTML ──
-LOTS_HTML=""
-while IFS=$'\t' read -r lot_id acquired qty cost; do
-  [ -z "$lot_id" ] && continue
-  qty_fmt=$(printf "%.8f" "$qty")
-  cost_fmt=$(printf "%'.2f" "$cost")
-  LOTS_HTML="${LOTS_HTML}<tr><td>${lot_id}</td><td>${acquired}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">\$${cost_fmt}</td></tr>"
-done <<< "$LOT_ROWS"
+# CSV pointer note (rendered in place of the removed line-item tables)
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record — every disposal and open lot — export Journal Entries or Capital Gains as CSV (clams reports journal-entries --format csv; clams reports capital-gains --format csv).</p>'
 
 # Non-final warning
 NON_FINAL_HTML=""
@@ -509,31 +465,7 @@ ${BALANCE_HTML}
   <div class="detail"><span class="detail-label">Avg Cost / BTC</span><span class="detail-value">\$${AVG_CB_FMT}</span></div>
 </div>
 
-$(if [ "$TOTAL_DISPOSALS" -gt 0 ]; then
-cat <<DISPOSAL_SECTION
-<h2>Disposal History (${TOTAL_DISPOSALS} events)</h2>
-${DISPOSAL_NOTE_HTML}
-<table>
-  <thead>
-    <tr><th>Date</th><th>Type</th><th class="num">Quantity (BTC)</th><th class="num">Proceeds</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th></tr>
-  </thead>
-  <tbody>
-${DISPOSAL_HTML}
-  </tbody>
-</table>
-DISPOSAL_SECTION
-fi)
-
-<h2>Open Lots (${TOTAL_LOTS} total)</h2>
-$(if [ "$TOTAL_LOTS" -gt "$MAX_LOTS" ]; then echo "<p class=\"note\">Showing ${MAX_LOTS} most recent of ${TOTAL_LOTS}</p>"; fi)
-<table>
-  <thead>
-    <tr><th>Lot</th><th>Acquired</th><th class="num">Quantity (BTC)</th><th class="num">Cost Basis (${FIAT_CURRENCY})</th></tr>
-  </thead>
-  <tbody>
-${LOTS_HTML}
-  </tbody>
-</table>
+${CSV_NOTE_HTML}
 
 </body>
 </html>

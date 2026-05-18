@@ -72,7 +72,7 @@ clams reports portfolio-summary --machine --format json \
   | <skill-dir>/scripts/render-portfolio-summary.sh --pdf <output-path>.pdf
 ```
 
-In the PDF, the disposal-history and open-lots tables are each capped at the 100 most recent entries (with a "showing N of M" note). All summary figures still reflect the full dataset.
+**The PDF is a summary document** — portfolio balance, asset balances, capital-gains summary, and the cost-basis-vs-market-value chart. It deliberately contains no per-transaction tables (no disposal history, no open-lots list). Portfolio Summary has no CSV form of its own; for full line-item history, export **Journal Entries** or **Capital Gains** as CSV.
 
 ## Capital Gains
 
@@ -91,7 +91,7 @@ clams reports capital-gains \
   | <skill-dir>/scripts/render-capital-gains.sh --pdf <output-path>.pdf
 ```
 
-**The PDF is a capped summary, not the full record.** Its lot-selection table shows only the first 100 rows (with a "showing first 100 of N" note); the totals row still reflects every disposal. The **CSV is the complete, authoritative line-item export** — use CSV for tax filing or anything needing every row. Only use the PDF when the user explicitly wants a branded summary document.
+**The PDF is a summary document** — date range, cost-basis method, and the summary totals (gross proceeds, fees, net proceeds, cost basis, realized gain/loss, disposal and lot-selection counts). It deliberately contains no per-disposal line-item table. The **CSV is the complete, authoritative line-item record** — always use CSV for tax filing or anything needing every row. Use the PDF only when the user explicitly wants a presentable summary document.
 
 ## Journal Entries
 

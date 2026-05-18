@@ -84,48 +84,13 @@ TOTAL_GL_CLASS=$(gain_class "$TOTAL_GAIN_LOSS")
 TOTAL_GL_SIGN=$(sign_prefix "$TOTAL_GAIN_LOSS")
 GAIN_PCT_SIGN=$(sign_prefix "$TOTAL_GAIN_PCT")
 
-# ── Build disposal rows ──
-# Cap the rendered table. The full row set (one row per lot selection) is
-# unbounded and can be tens of thousands of rows on high-volume wallets,
-# which makes WeasyPrint produce an enormous, unusable PDF. The complete
-# line-item detail is available via the CSV export; the PDF shows a capped
-# table plus full totals (the Totals row below uses .data.summary, not the
-# rendered rows, so it always reflects the entire dataset).
-
-MAX_ROWS=100
-TOTAL_ROWS=$(echo "$JSON" | jq '.data.rows | length')
-
-DISPOSAL_ROWS=$(echo "$JSON" | jq -r --argjson max "$MAX_ROWS" '
-  .data.rows[0:$max][] |
-  (.sale_timestamp | split("T")[0]) as $sale_date |
-  (.purchase_timestamp | split("T")[0]) as $purchase_date |
-  (.quantity_disposed | tonumber / 100000000) as $qty |
-  (.gross_proceeds_fiat | tonumber) as $gross |
-  (.fiat_fees_fiat | tonumber) as $fees |
-  (.net_proceeds_fiat | tonumber) as $net |
-  (.cost_basis_fiat | tonumber) as $cb |
-  (.realized_gain_fiat | tonumber) as $gain |
-  (.holding_period_days) as $days |
-  (if .holding_period_days >= 365 then "LT" else "ST" end) as $holding |
-  (.sale_connections // [] | map(.connection_label) | join(", ")) as $conn |
-  "\($sale_date)\t\($purchase_date)\t\($qty)\t\($gross)\t\($fees)\t\($net)\t\($cb)\t\($gain)\t\($days)\t\($holding)\t\($conn)"
-')
-
-# ── Generate table rows HTML ──
-
-TABLE_HTML=""
-while IFS=$'\t' read -r sale_date purchase_date qty gross fees net cb gain days holding conn; do
-  [ -z "$sale_date" ] && continue
-  qty_fmt=$(printf "%.8f" "$qty")
-  gross_fmt=$(printf "%'.2f" "$gross")
-  fees_fmt=$(printf "%'.2f" "$fees")
-  net_fmt=$(printf "%'.2f" "$net")
-  cb_fmt=$(printf "%'.2f" "$cb")
-  gain_fmt=$(printf "%'.2f" "$gain")
-  gl_class=$(gain_class "$gain")
-  gl_sign=$(sign_prefix "$gain")
-  TABLE_HTML="${TABLE_HTML}<tr><td>${sale_date}</td><td>${purchase_date}</td><td>${conn}</td><td class=\"num\">${qty_fmt}</td><td class=\"num\">${gross_fmt}</td><td class=\"num\">${fees_fmt}</td><td class=\"num\">${net_fmt}</td><td class=\"num\">${cb_fmt}</td><td class=\"num ${gl_class}\">${gl_sign}${gain_fmt}</td><td class=\"num\">${days}</td><td>${holding}</td></tr>"
-done <<< "$DISPOSAL_ROWS"
+# ── PDF is a summary document ──
+# Per-lot-selection rows are deliberately not rendered. The row set is
+# unbounded (tens of thousands of rows on high-volume wallets), and
+# line-item data belongs in the CSV export, not a presentation PDF.
+# This PDF carries the summary totals only. For the complete line-item
+# ledger, export the Capital Gains report as CSV:
+#   clams reports capital-gains --start ... --end ... --format csv --output <path>
 
 # Non-final warning
 NON_FINAL_HTML=""
@@ -133,11 +98,8 @@ if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
 fi
 
-# Row truncation note
-ROW_NOTE_HTML=""
-if [ "$TOTAL_ROWS" -gt "$MAX_ROWS" ]; then
-  ROW_NOTE_HTML="<p class=\"note\">Showing first ${MAX_ROWS} of ${TOTAL_ROWS} lot selections. Totals below reflect all ${TOTAL_ROWS}. Export as CSV for the complete line-item detail.</p>"
-fi
+# CSV pointer note (rendered in place of the removed line-item table)
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record — every disposal and lot selection — export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
 
 emit_html() {
 cat <<'HTMLEOF_TOP'
@@ -378,17 +340,7 @@ cat <<HTMLEOF_BODY
   <div class="detail"><span class="detail-label">Total Qty Disposed</span><span class="detail-value">${QTY_DISPOSED_FMT} BTC</span></div>
 </div>
 
-<h2>Lot Selections</h2>
-${ROW_NOTE_HTML}
-<table>
-  <thead>
-    <tr><th>Sold</th><th>Acquired</th><th>Connection</th><th class="num">Qty (BTC)</th><th class="num">Gross</th><th class="num">Fees</th><th class="num">Net</th><th class="num">Cost Basis</th><th class="num">Gain/Loss</th><th class="num">Days</th><th>Term</th></tr>
-  </thead>
-  <tbody>
-${TABLE_HTML}
-    <tr class="total"><td colspan="4">Totals</td><td class="num">${GROSS_PROCEEDS_FMT}</td><td class="num">${FEES_FMT}</td><td class="num">${NET_PROCEEDS_FMT}</td><td class="num">${COST_BASIS_FMT}</td><td class="num ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}${GAIN_LOSS_FMT}</td><td></td><td></td></tr>
-  </tbody>
-</table>
+${CSV_NOTE_HTML}
 
 </body>
 </html>
