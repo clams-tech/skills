@@ -82,7 +82,9 @@ clams reports portfolio-summary --machine --format json \
   | <skill-dir>/scripts/render-portfolio-summary.sh --pdf <output-path>.pdf
 ```
 
-**The PDF is a summary document** — portfolio balance, asset balances, capital-gains summary, and the cost-basis-vs-market-value chart. It deliberately contains no per-transaction tables (no disposal history, no open-lots list). Portfolio Summary has no CSV form of its own; for full line-item history, export **Journal Entries** or **Capital Gains** as CSV.
+**The PDF is a summary document** — portfolio balance, asset balances, capital-gains summary. It deliberately contains no per-transaction tables (no disposal history, no open-lots list). Portfolio Summary has no CSV form of its own; for full line-item history, export **Journal Entries** or **Capital Gains** as CSV.
+
+> **Dumb templater.** The render scripts substitute Clams engine values *verbatim* — no arithmetic, no formatting, no unit conversion. Until the engine exposes display-ready fields, the PDF shows raw values (satoshis, cents, 3-dp fiat, credit-normal negatives). This is intentional; see [pdf-report-gaps.md](pdf-report-gaps.md) for the upstream spec.
 
 ## Capital Gains
 

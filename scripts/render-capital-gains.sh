@@ -55,67 +55,47 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-JSON=$(cat)
+# ── Dumb templater ──
+# This script performs NO arithmetic and NO formatting on financial values.
+# It only substitutes strings the Clams engine returns, verbatim, into the
+# template (single jq pass; no per-field reparse, no sats→BTC, no currency
+# formatting, no sign/percentage derivation). Values the engine does not yet
+# expose display-ready are shown exactly as received — see
+# references/pdf-report-gaps.md for the upstream spec to fix this properly.
 
-# ── Extract header fields ──
+IFS=$'\t' read -r FIAT_CURRENCY ALGORITHM RANGE_START RANGE_END NON_FINAL \
+  DISPOSAL_COUNT ROW_COUNT TOTAL_QTY_DISPOSED GROSS_PROCEEDS FEES \
+  NET_PROCEEDS COST_BASIS REALIZED_GAIN REALIZED_PCT < <(
+  jq -r '[
+    .data.fiat_currency // "",
+    .data.algorithm // "",
+    .data.range_start // "",
+    .data.range_end // "",
+    (.data.non_final // false | tostring),
+    (.data.summary.disposal_count // 0 | tostring),
+    (.data.summary.row_count // 0 | tostring),
+    .data.summary.total_quantity_disposed // "",
+    .data.summary.total_gross_proceeds_fiat // "",
+    .data.summary.total_fiat_fees_fiat // "",
+    .data.summary.total_net_proceeds_fiat // "",
+    .data.summary.total_cost_basis_fiat // "",
+    .data.summary.total_realized_gain_fiat // "",
+    .data.summary.total_realized_gain_percentage // ""
+  ] | @tsv'
+)
 
-FIAT_CURRENCY=$(echo "$JSON" | jq -r '.data.fiat_currency')
-ALGORITHM=$(echo "$JSON" | jq -r '.data.algorithm')
-START_DATE=$(echo "$JSON" | jq -r '.data.range_start // empty' | sed 's/T.*//')
-END_DATE=$(echo "$JSON" | jq -r '.data.range_end // empty' | sed 's/T.*//')
-
-if [ -z "$START_DATE" ] || [ -z "$END_DATE" ]; then
-  echo "Error: JSON is missing range_start or range_end. Make sure you pipe the output of 'clams reports capital-gains --machine --format json'." >&2
+if [ -z "$RANGE_START" ] || [ -z "$RANGE_END" ]; then
+  echo "Error: JSON is missing range_start or range_end. Pipe the output of 'clams reports capital-gains --machine --format json'." >&2
   exit 1
 fi
-NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
 
-# ── Summary ──
-
-DISPOSAL_COUNT=$(echo "$JSON" | jq -r '.data.summary.disposal_count')
-ROW_COUNT=$(echo "$JSON" | jq -r '.data.summary.row_count')
-TOTAL_QTY_DISPOSED=$(echo "$JSON" | jq -r '.data.summary.total_quantity_disposed | tonumber / 100000000')
-TOTAL_GROSS_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_gross_proceeds_fiat | tonumber')
-TOTAL_FEES=$(echo "$JSON" | jq -r '.data.summary.total_fiat_fees_fiat | tonumber')
-TOTAL_NET_PROCEEDS=$(echo "$JSON" | jq -r '.data.summary.total_net_proceeds_fiat | tonumber')
-TOTAL_COST_BASIS=$(echo "$JSON" | jq -r '.data.summary.total_cost_basis_fiat | tonumber')
-TOTAL_GAIN_LOSS=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_fiat | tonumber')
-TOTAL_GAIN_PCT=$(echo "$JSON" | jq -r '.data.summary.total_realized_gain_percentage | tonumber')
-
-# ── Format summary values ──
-
-QTY_DISPOSED_FMT=$(printf "%.8f" "$TOTAL_QTY_DISPOSED")
-GROSS_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_GROSS_PROCEEDS")
-FEES_FMT=$(printf "%'.2f" "$TOTAL_FEES")
-NET_PROCEEDS_FMT=$(printf "%'.2f" "$TOTAL_NET_PROCEEDS")
-COST_BASIS_FMT=$(printf "%'.2f" "$TOTAL_COST_BASIS")
-GAIN_LOSS_FMT=$(printf "%'.2f" "$TOTAL_GAIN_LOSS")
-GAIN_PCT_FMT=$(printf "%.2f" "$TOTAL_GAIN_PCT")
-
-# Gain/loss helpers
-gain_class() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "positive" : "negative" }'; }
-sign_prefix() { awk -v n="$1" 'BEGIN { print (n >= 0) ? "+" : "" }'; }
-
-TOTAL_GL_CLASS=$(gain_class "$TOTAL_GAIN_LOSS")
-TOTAL_GL_SIGN=$(sign_prefix "$TOTAL_GAIN_LOSS")
-GAIN_PCT_SIGN=$(sign_prefix "$TOTAL_GAIN_PCT")
-
-# ── PDF is a summary document ──
-# Per-lot-selection rows are deliberately not rendered. The row set is
-# unbounded (tens of thousands of rows on high-volume wallets), and
-# line-item data belongs in the CSV export, not a presentation PDF.
-# This PDF carries the summary totals only. For the complete line-item
-# ledger, export the Capital Gains report as CSV:
-#   clams reports capital-gains --start ... --end ... --format csv --output <path>
-
-# Non-final warning
+# Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
 fi
 
-# CSV pointer note (rendered in place of the removed line-item table)
-CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record — every disposal and lot selection — export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
+CSV_NOTE_HTML='<p class="note">This PDF is a summary document rendered verbatim from Clams engine output — no values are computed or reformatted by the skill. For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
 
 emit_html() {
 cat <<'HTMLEOF_TOP'
@@ -312,7 +292,7 @@ cat <<HTMLEOF_BODY
   <div class="header-left">
     <div class="report-name">Capital Gains Report</div>
     <div class="report-meta">
-      ${START_DATE} to ${END_DATE}<br>
+      ${RANGE_START} to ${RANGE_END}<br>
       Cost basis method: ${ALGORITHM} &middot; Currency: ${FIAT_CURRENCY} &middot; ${DISPOSAL_COUNT} disposals, ${ROW_COUNT} lot selections
     </div>
     ${NON_FINAL_HTML}
@@ -338,24 +318,24 @@ cat <<HTMLEOF_BODY
 <div class="summary">
   <div class="summary-metric">
     <div class="summary-label">Gross Proceeds</div>
-    <div class="summary-value">\$${GROSS_PROCEEDS_FMT}</div>
+    <div class="summary-value">${GROSS_PROCEEDS} ${FIAT_CURRENCY}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Fees</div>
-    <div class="summary-value">\$${FEES_FMT}</div>
+    <div class="summary-value">${FEES} ${FIAT_CURRENCY}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Net Proceeds</div>
-    <div class="summary-value">\$${NET_PROCEEDS_FMT}</div>
+    <div class="summary-value">${NET_PROCEEDS} ${FIAT_CURRENCY}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Cost Basis</div>
-    <div class="summary-value">\$${COST_BASIS_FMT}</div>
+    <div class="summary-value">${COST_BASIS} ${FIAT_CURRENCY}</div>
   </div>
   <div class="summary-metric">
     <div class="summary-label">Realized Gain/Loss</div>
-    <div class="summary-value ${TOTAL_GL_CLASS}">${TOTAL_GL_SIGN}\$${GAIN_LOSS_FMT}</div>
-    <div class="summary-sub">${GAIN_PCT_SIGN}${GAIN_PCT_FMT}%</div>
+    <div class="summary-value">${REALIZED_GAIN} ${FIAT_CURRENCY}</div>
+    <div class="summary-sub">${REALIZED_PCT}%</div>
   </div>
 </div>
 
@@ -363,7 +343,7 @@ cat <<HTMLEOF_BODY
 <div class="details">
   <div class="detail"><span class="detail-label">Disposals</span><span class="detail-value">${DISPOSAL_COUNT}</span></div>
   <div class="detail"><span class="detail-label">Lot Selections</span><span class="detail-value">${ROW_COUNT}</span></div>
-  <div class="detail"><span class="detail-label">Total Qty Disposed</span><span class="detail-value">${QTY_DISPOSED_FMT} BTC</span></div>
+  <div class="detail"><span class="detail-label">Total Quantity Disposed</span><span class="detail-value">${TOTAL_QTY_DISPOSED}</span></div>
 </div>
 
 ${CSV_NOTE_HTML}

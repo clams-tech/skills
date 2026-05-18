@@ -55,128 +55,52 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
+# ── Dumb templater ──
+# NO arithmetic, NO formatting, NO sign inversion on financial values. jq
+# extracts engine values and places them verbatim into row HTML; bash only
+# concatenates. The CLI's plain-text formatter sign-flips credit-normal
+# accounts (Liabilities/Equity/Income) and converts sats/cents for display —
+# this PDF intentionally does NOT replicate that; it is engine responsibility.
+# Values are shown exactly as the engine returns them. See
+# references/pdf-report-gaps.md for the upstream spec to fix this properly.
+
 JSON=$(cat)
 
-# ── Extract fields ──
-
-TIMESTAMP=$(echo "$JSON" | jq -r '.data.snapshot_timestamp')
-NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final')
-INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds | join(", ")')
-
-# Build account tree rows as TSV: depth \t label \t btc_balance \t usd_balance
-#
-# SIGN INVERSION (audit note):
-#   Source field: .data.roots[].balances[].net  (and recursively .children[].balances[].net)
-#   Affected roots: "Liabilities", "Equity", "Income"
-#   NOT affected: "Assets", "Expenses"
-#
-#   In double-entry accounting, Liabilities/Equity/Income accounts have natural credit
-#   balances, so the CLI JSON stores their .net values as negative numbers. The CLI's own
-#   plain text formatter (clams reports balance-sheet) inverts the sign for display,
-#   showing them as positive. We replicate that same inversion here so the PDF matches
-#   the terminal output. No other transformation is applied beyond unit conversion
-#   (satoshis → BTC: ÷100000000, cents → USD: ÷100).
-#
-#   The (if $v == 0 then 0 else $v end) guard prevents -0.00 display when a credit-normal
-#   account has a zero balance (0 × -1 = -0 in IEEE 754 floating point).
-ACCOUNT_ROWS=$(echo "$JSON" | jq -r '
-  def walk_tree(depth; sign):
-    . as $node |
-    ($node.balances // []) as $bals |
-    (($bals | map(select(.asset_code == "BTC")) | .[0].net // "0") | tonumber * sign / 100000000) as $v1 |
-    (($bals | map(select(.asset_code == "USD")) | .[0].net // "0") | tonumber * sign / 100) as $v2 |
-    (if $v1 == 0 then 0 else $v1 end) as $btc |
-    (if $v2 == 0 then 0 else $v2 end) as $usd |
-    "\(depth)\t\($node.label)\t\($btc)\t\($usd)",
-    (($node.children // [])[] | walk_tree(depth + 1; sign));
-  .data.roots[] |
-  (if .label == "Liabilities" or .label == "Equity" or .label == "Income" then -1 else 1 end) as $sign |
-  walk_tree(0; $sign)
-')
-
-# Build connection balance rows as TSV: kind \t label \t btc_balance \t usd_balance
-#
-# SIGN INVERSION (audit note):
-#   Source field: .data.connection_balances[].balances[].net
-#   Affected kinds: "Income", "Equity", "Liabilities"  (keyed on .data.connection_balances[].kind)
-#   NOT affected: "Assets", "Expenses"
-#
-#   Same credit-normal inversion as the account tree above. Each connection_balance entry
-#   has a .kind field. When kind is Income/Equity/Liabilities, the .balances[].net value
-#   is negative in the JSON (credit-normal). We multiply by -1 so the PDF shows the same
-#   positive value the CLI plain text formatter displays. Unit conversion only otherwise.
-CONNECTION_ROWS=$(echo "$JSON" | jq -r '
-  .data.connection_balances[] |
-  (if .kind == "Income" or .kind == "Equity" or .kind == "Liabilities" then -1 else 1 end) as $sign |
-  (.balances // []) as $bals |
-  (($bals | map(select(.asset_code == "BTC")) | .[0].net // "0") | tonumber * $sign / 100000000) as $v1 |
-  (($bals | map(select(.asset_code == "USD")) | .[0].net // "0") | tonumber * $sign / 100) as $v2 |
-  (if $v1 == 0 then 0 else $v1 end) as $btc |
-  (if $v2 == 0 then 0 else $v2 end) as $usd |
-  "\(.kind)\t\(.connection_label)\t\($btc)\t\($usd)"
-')
-
-# Totals per asset
-TOTALS_ROWS=$(echo "$JSON" | jq -r '
-  .data.totals[] |
-  "\(.asset_code)\t\(.debit_total)\t\(.credit_total)\t\(.net)"
-')
-
-# Issues
+SNAPSHOT_TIMESTAMP=$(echo "$JSON" | jq -r '.data.snapshot_timestamp // ""')
+INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds // [] | join(", ")')
+NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final // false | tostring')
 UNKNOWN_ROWS=$(echo "$JSON" | jq -r '.data.issues.unknown_account_rows // 0')
 
-# Prevent -0.00 display artifacts from floating-point sign inversion
-fix_neg_zero() {
-  local v="$1"
-  case "$v" in
-    -0.00) echo "0.00" ;; -0.00000000) echo "0.00000000" ;; *) echo "$v" ;;
-  esac
-}
+# Account tree: engine .net per asset, verbatim. depth drives indentation
+# only (via a CSS custom property + calc — no script/jq value math).
+ACCOUNT_HTML=$(echo "$JSON" | jq -r '
+  def walk(depth):
+    . as $n | ($n.balances // []) as $b |
+    (($b | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
+    (($b | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
+    "<tr class=\"\(if depth==0 then "root" else "child" end)\"><td class=\"acct\" style=\"--d:\(depth)\">\($n.label)</td><td class=\"num\">\($btc)</td><td class=\"num\">\($usd)</td></tr>",
+    (($n.children // [])[] | walk(depth + 1));
+  .data.roots[]? | walk(0)
+')
 
-# Format timestamp for display
-DISPLAY_DATE=$(echo "$TIMESTAMP" | sed 's/T/ /; s/\+.*$/Z/; s/\.[0-9]*Z/Z/')
+CONNECTION_HTML=$(echo "$JSON" | jq -r '
+  .data.connection_balances[]? |
+  (((.balances // []) | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
+  (((.balances // []) | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
+  "<tr><td>\(.connection_label)</td><td>\(.kind)</td><td class=\"num\">\($btc)</td><td class=\"num\">\($usd)</td></tr>"
+')
 
-# ── Generate account table rows HTML ──
-ACCOUNT_HTML=""
-while IFS=$'\t' read -r depth label btc usd; do
-  [ -z "$depth" ] && continue
-  padding=$(( depth * 20 ))
-  btc_fmt=$(fix_neg_zero "$(printf "%.8f" "$btc")")
-  usd_fmt=$(fix_neg_zero "$(printf "%'.2f" "$usd")")
+TOTALS_HTML=$(echo "$JSON" | jq -r '
+  .data.totals[]? |
+  "<tr><td>\(.asset_code)</td><td class=\"num\">\(.debit_total)</td><td class=\"num\">\(.credit_total)</td><td class=\"num\">\(.net)</td></tr>"
+')
 
-  if [ "$depth" -eq 0 ]; then
-    ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"root\"><td style=\"padding-left:${padding}px\">${label}</td><td class=\"num\">${btc_fmt}</td><td class=\"num\">${usd_fmt}</td></tr>"
-  else
-    ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"child\"><td style=\"padding-left:${padding}px\">${label}</td><td class=\"num\">${btc_fmt}</td><td class=\"num\">${usd_fmt}</td></tr>"
-  fi
-done <<< "$ACCOUNT_ROWS"
+ISSUES_HTML=""
+if [ "$UNKNOWN_ROWS" != "0" ]; then
+  ISSUES_HTML="<div class=\"warning\">${UNKNOWN_ROWS} unknown account row(s) reported by the engine.</div>"
+fi
 
-# ── Generate connection balance rows HTML ──
-CONNECTION_HTML=""
-while IFS=$'\t' read -r kind label btc usd; do
-  [ -z "$kind" ] && continue
-  btc_fmt=$(fix_neg_zero "$(printf "%.8f" "$btc")")
-  usd_fmt=$(fix_neg_zero "$(printf "%'.2f" "$usd")")
-  CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${label}</td><td>${kind}</td><td class=\"num\">${btc_fmt}</td><td class=\"num\">${usd_fmt}</td></tr>"
-done <<< "$CONNECTION_ROWS"
-
-# ── Generate totals HTML ──
-TOTALS_HTML=""
-while IFS=$'\t' read -r asset_code debit_total credit_total net; do
-  [ -z "$asset_code" ] && continue
-  if [ "$asset_code" = "BTC" ]; then
-    debit_fmt=$(fix_neg_zero "$(printf "%.8f" "$(awk -v n="$debit_total" 'BEGIN { printf "%.8f", n / 100000000 }')")")
-    credit_fmt=$(fix_neg_zero "$(printf "%.8f" "$(awk -v n="$credit_total" 'BEGIN { printf "%.8f", n / 100000000 }')")")
-    net_fmt=$(fix_neg_zero "$(printf "%.8f" "$(awk -v n="$net" 'BEGIN { printf "%.8f", n / 100000000 }')")")
-  else
-    debit_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$debit_total" 'BEGIN { printf "%.2f", n / 100 }')")")
-    credit_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$credit_total" 'BEGIN { printf "%.2f", n / 100 }')")")
-    net_fmt=$(fix_neg_zero "$(printf "%'.2f" "$(awk -v n="$net" 'BEGIN { printf "%.2f", n / 100 }')")")
-  fi
-  TOTALS_HTML="${TOTALS_HTML}<tr><td>${asset_code}</td><td class=\"num\">${debit_fmt}</td><td class=\"num\">${credit_fmt}</td><td class=\"num\">${net_fmt}</td></tr>"
-done <<< "$TOTALS_ROWS"
-
-# Non-final warning
+# Non-final flag (engine-set boolean — display only, no computation)
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
@@ -305,6 +229,9 @@ cat <<'HTMLEOF_TOP'
     font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
     font-size: 10px;
   }
+  /* Account-tree indentation: depth comes from the engine traversal as a
+     CSS custom property; the multiply is declarative (no script math). */
+  td.acct { padding-left: calc(var(--d, 0) * 16px); }
 </style>
 </head>
 <body>
@@ -315,7 +242,7 @@ cat <<HTMLEOF_BODY
   <div class="header-left">
     <div class="report-name">Balance Sheet</div>
     <div class="report-meta">
-      ${DISPLAY_DATE}<br>
+      ${SNAPSHOT_TIMESTAMP}<br>
       Included: ${INCLUDED_KINDS}
     </div>
     ${NON_FINAL_HTML}
