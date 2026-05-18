@@ -8,7 +8,7 @@
 #     currency symbol, a "%", or a readable date.
 #   * No function combines fields, derives a new figure, infers a sign from
 #     account type, aggregates, or computes geometry. That is *computation*
-#     and belongs in the Clams engine (see references/pdf-report-gaps.md).
+#     and belongs in the Clams engine.
 #
 # Sourced by render-*.sh. bash 3.2 safe (awk/sed, ANSI-C quoting, no mapfile).
 

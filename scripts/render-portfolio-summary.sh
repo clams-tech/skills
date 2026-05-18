@@ -62,7 +62,7 @@ read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 # output is held). Line 1 = TSV scalars; remaining lines = "asset<TAB>net"
 # (raw engine .net). Presentation formatting of INDIVIDUAL fields (sats→BTC,
 # cents→fiat, symbol, %, date) is applied via format.sh. NO multi-field
-# derivation, NO computed figures, NO chart. See references/pdf-report-gaps.md.
+# derivation, NO computed figures, NO chart.
 _OUT=$(jq -r '
   ( [
       .data.snapshot_timestamp // "",

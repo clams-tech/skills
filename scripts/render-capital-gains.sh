@@ -62,7 +62,7 @@ read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 # presentation formatting of INDIVIDUAL engine fields (sats→BTC, fiat
 # symbol/2dp, %, date) via format.sh. NO multi-field derivation, NO
 # computed figures, NO account-type sign logic, NO charts — those belong
-# in the engine. See references/pdf-report-gaps.md.
+# in the engine.
 
 IFS=$'\t' read -r FIAT_CURRENCY ALGORITHM RANGE_START RANGE_END NON_FINAL \
   DISPOSAL_COUNT ROW_COUNT TOTAL_QTY_DISPOSED GROSS_PROCEEDS FEES \
