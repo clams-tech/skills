@@ -6,11 +6,13 @@ The skill is organized into reference docs and bundled scripts:
 
 - [`SKILL.md`](SKILL.md) — top-level routing and rules
 - [`references/`](references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
-- [`scripts/`](scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), plus a state verification helper
+- [`scripts/`](scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), a WeasyPrint resolver, and a state verification helper
 
 ## Prerequisites
 
 - [Clams CLI](https://clams.tech/cli/) installed and on your `PATH`
+- `jq` (used by the report render scripts)
+- **Optional, for PDF reports:** [WeasyPrint](https://weasyprint.org) — `brew install weasyprint` (macOS) or your distro's package (Linux). Everything else (plain text, CSV) works without it; the skill falls back gracefully when WeasyPrint is absent. Don't `pip install` it into system Python — that build can't render.
 
 ## Installation
 

@@ -12,9 +12,19 @@
 |---|---|---|
 | **Plain text** | `--format plain` | **Default for display reports** (balance sheet, portfolio summary, balance history). Show CLI output directly, do not reformat it |
 | **CSV** | `--format csv --output <path>` | **Default for data reports** (capital gains, journal entries). Saves a file the user can open in a spreadsheet |
-| **PDF** | `--machine --format json` piped to `<skill-dir>/scripts/render-*.sh --pdf <path>` | **Only when the user explicitly asks for PDF.** Requires `weasyprint` to be installed |
+| **PDF** | `--machine --format json` piped to `<skill-dir>/scripts/render-*.sh --pdf <path>` | **Only when the user explicitly asks for PDF.** Needs WeasyPrint (see below) |
 
 **Do not** default to PDF. Use plain text or CSV as described above. Only generate PDF when the user specifically requests it.
+
+### PDF prerequisite & fallback
+
+The render scripts need **WeasyPrint**. They locate it robustly — PATH, Homebrew (`/opt/homebrew`, `/usr/local`), pip-user, `python3 -m weasyprint`, or an explicit `CLAMS_WEASYPRINT=/full/path` — and verify it can actually render (a Homebrew install missing from the agent's PATH still works; a broken pip install is skipped).
+
+If no working WeasyPrint is found, the render script **exits with code 3** and prints install guidance. When that happens, do **not** run an unprompted install:
+
+1. Produce the report in a working format instead — `--format plain` (display) or `--format csv --output <path>` (data).
+2. Tell the user PDF needs WeasyPrint and offer the one-time install: `brew install weasyprint` (macOS) or the distro package (Linux). **Never** `pip install` it into system Python — that yields an install that imports but cannot render.
+3. Run the install only with the user's confirmation, then retry the PDF.
 
 **Do not** use `--machine --format json` and then try to display the result yourself. Either pipe it to a render script for PDF, or use `--format plain` for terminal display.
 

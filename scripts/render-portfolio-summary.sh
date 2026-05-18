@@ -33,11 +33,27 @@ if ! command -v jq &>/dev/null; then
   exit 1
 fi
 
-if ! command -v weasyprint &>/dev/null; then
-  echo "Error: weasyprint is required but not installed." >&2
-  echo "Install with: brew install weasyprint" >&2
-  exit 1
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+if ! WEASY_CMD_STR="$("$SCRIPT_DIR/find-weasyprint.sh")"; then
+  cat >&2 <<'WEASYERR'
+Error: WeasyPrint is required for PDF output, but no working installation was found.
+
+WeasyPrint needs native libraries (Pango, cairo, GDK-PixBuf). Install it once:
+  macOS:  brew install weasyprint
+  Linux:  sudo apt install weasyprint   (or your distro's equivalent)
+
+Do NOT `pip install` WeasyPrint into the system Python — that produces an
+install that imports but cannot render (missing native libraries).
+
+Already installed elsewhere? Point the skill at it and retry:
+  CLAMS_WEASYPRINT=/full/path/to/weasyprint  <skill-dir>/scripts/render-...sh --pdf ...
+
+No PDF needed right now? Generate this report without it:
+  --format plain   (terminal display)      --format csv --output <path>   (data)
+WEASYERR
+  exit 3
 fi
+read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
 JSON=$(cat)
 
@@ -472,5 +488,5 @@ ${CSV_NOTE_HTML}
 HTMLEOF_BODY
 }
 
-emit_html | weasyprint -q - "$PDF_OUTPUT"
+emit_html | "${WEASY_CMD[@]}" -q - "$PDF_OUTPUT"
 echo "PDF saved to $PDF_OUTPUT" >&2
