@@ -109,7 +109,7 @@ clams reports capital-gains \
   | <skill-dir>/scripts/render-capital-gains.sh --pdf <output-path>.pdf
 ```
 
-**The PDF is a summary document** — date range, cost-basis method, and the summary totals (gross proceeds, fees, net proceeds, cost basis, realized gain/loss, disposal and lot-selection counts). It deliberately contains no per-disposal line-item table. The **CSV is the complete, authoritative line-item record** — always use CSV for tax filing or anything needing every row. Use the PDF only when the user explicitly wants a presentable summary document.
+**The PDF is a summary document** — date range, cost-basis method, the summary totals (gross proceeds, fees, net proceeds, cost basis, realized gain/loss, disposal and lot-selection counts), and a **Connection Summary** section breaking those same totals down per sale/disposal connection (plus the engine's mixed-connection and unattributed buckets). It deliberately contains no per-disposal line-item table. The **CSV is the complete, authoritative line-item record** — always use CSV for tax filing or anything needing every row. Use the PDF only when the user explicitly wants a presentable summary document.
 
 ## Journal Entries
 

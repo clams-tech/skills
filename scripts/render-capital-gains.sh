@@ -64,6 +64,8 @@ read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 # computed figures, NO account-type sign logic, NO charts — those belong
 # in the engine.
 
+JSON=$(cat)
+
 IFS=$'\t' read -r FIAT_CURRENCY ALGORITHM RANGE_START RANGE_END NON_FINAL \
   DISPOSAL_COUNT ROW_COUNT TOTAL_QTY_DISPOSED GROSS_PROCEEDS FEES \
   NET_PROCEEDS COST_BASIS REALIZED_GAIN REALIZED_PCT < <(
@@ -82,7 +84,7 @@ IFS=$'\t' read -r FIAT_CURRENCY ALGORITHM RANGE_START RANGE_END NON_FINAL \
     .data.summary.total_cost_basis_fiat // "",
     .data.summary.total_realized_gain_fiat // "",
     .data.summary.total_realized_gain_percentage // ""
-  ] | @tsv'
+  ] | @tsv' <<< "$JSON"
 )
 
 if [ -z "$RANGE_START" ] || [ -z "$RANGE_END" ]; then
@@ -105,6 +107,78 @@ REALIZED_PCT=$(fmt_pct "$REALIZED_PCT")
 NON_FINAL_HTML=""
 if [ "$NON_FINAL" = "true" ]; then
   NON_FINAL_HTML='<div class="warning">This snapshot is non-final — journal processing may still be in progress.</div>'
+fi
+
+# ── Connection summary (per-connection / mixed / unattributed aggregates) ──
+# jq emits one TSV line per engine-provided aggregate, in the engine's order;
+# bash applies single-field presentation formatting (sats→BTC, cents/major
+# fiat→symbol, %, friendly kind label) via format.sh. No re-sorting, no
+# re-aggregation, no totals math — the engine already bucketed and summed.
+# Delimiter is the ASCII unit separator (0x1f), not a tab: tab is IFS
+# whitespace, so bash would collapse the empty connection_label/connection_id
+# fields that mixed/unattributed buckets carry, shifting every later column.
+CONNECTION_ROWS_HTML=""
+while IFS=$'\x1f' read -r _kind _label _cid _disp _rows _qty _gross _fees _net _cost _gain _pct; do
+  [ -z "$_kind" ] && continue
+  case "$_kind" in
+    single_sale_connection) _name="${_label:-Unknown connection}" ;;
+    mixed_sale_connections) _name="Mixed sale connections" ;;
+    unattributed)           _name="Unattributed" ;;
+    *)                      _name="$_kind" ;;
+  esac
+  _cid_html=""
+  [ -n "$_cid" ] && _cid_html="<div class=\"conn-id\">${_cid}</div>"
+  _qd="$(fmt_btc_sats "$_qty")"
+  _grossd="$(fmt_fiat_major "$_gross" "$FIAT_CURRENCY")"
+  _feesd="$(fmt_fiat_major "$_fees" "$FIAT_CURRENCY")"
+  _netd="$(fmt_fiat_major "$_net" "$FIAT_CURRENCY")"
+  _costd="$(fmt_fiat_major "$_cost" "$FIAT_CURRENCY")"
+  _gaind="$(fmt_fiat_major "$_gain" "$FIAT_CURRENCY")"
+  _pctd="$(fmt_pct "$_pct")"
+  # Sign class for gain/loss colouring (display only — sign comes from engine).
+  case "$_gain" in
+    -*) _gaincls="negative" ;;
+    *)  _gaincls="positive" ;;
+  esac
+  CONNECTION_ROWS_HTML="${CONNECTION_ROWS_HTML}<tr><td class=\"conn\">${_name}${_cid_html}</td><td class=\"num\">${_disp}</td><td class=\"num\">${_rows}</td><td class=\"num\">${_qd}</td><td class=\"num\">${_grossd}</td><td class=\"num\">${_feesd}</td><td class=\"num\">${_netd}</td><td class=\"num\">${_costd}</td><td class=\"num ${_gaincls}\">${_gaind}</td><td class=\"num ${_gaincls}\">${_pctd}</td></tr>"
+done <<< "$(echo "$JSON" | jq -r '
+  .data.connection_aggregates[]? |
+  [
+    .kind // "",
+    .connection_label // "",
+    .connection_id // "",
+    (.disposal_count // 0 | tostring),
+    (.row_count // 0 | tostring),
+    .total_quantity_disposed // "",
+    .total_gross_proceeds_fiat // "",
+    .total_fiat_fees_fiat // "",
+    .total_net_proceeds_fiat // "",
+    .total_cost_basis_fiat // "",
+    .total_realized_gain_fiat // "",
+    .total_realized_gain_percentage // ""
+  ] | join("\u001f")
+')"
+
+CONNECTION_SUMMARY_HTML=""
+if [ -n "$CONNECTION_ROWS_HTML" ]; then
+  CONNECTION_SUMMARY_HTML="<h2>Connection Summary</h2>
+<table class=\"conn-table\">
+  <thead>
+    <tr>
+      <th>Connection</th>
+      <th class=\"num\">Disposals</th>
+      <th class=\"num\">Lot Selections</th>
+      <th class=\"num\">Quantity (BTC)</th>
+      <th class=\"num\">Gross Proceeds</th>
+      <th class=\"num\">Fees</th>
+      <th class=\"num\">Net Proceeds</th>
+      <th class=\"num\">Cost Basis</th>
+      <th class=\"num\">Realized Gain/Loss</th>
+      <th class=\"num\">ROI</th>
+    </tr>
+  </thead>
+  <tbody>${CONNECTION_ROWS_HTML}</tbody>
+</table>"
 fi
 
 CSV_NOTE_HTML='<p class="note">This PDF is a summary document. For the complete line-item record, export the Capital Gains report as CSV (clams reports capital-gains --format csv).</p>'
@@ -287,6 +361,18 @@ cat <<'HTMLEOF_TOP'
   }
   tr { page-break-inside: avoid; }
   tbody tr:nth-child(even) td { background: #fafaf8; }
+  /* Connection summary: left-aligned name cell with a muted connection-id sub-line */
+  .conn-table td.conn {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 500;
+  }
+  .conn-table td.conn .conn-id {
+    font-family: 'SF Mono', 'Menlo', 'Consolas', 'Liberation Mono', monospace;
+    font-size: 7px;
+    color: #969892;
+    font-weight: 400;
+    margin-top: 1px;
+  }
   tr.total td {
     font-weight: 700;
     border-top: 2px solid #212420;
@@ -357,6 +443,8 @@ cat <<HTMLEOF_BODY
   <div class="detail"><span class="detail-label">Lot Selections</span><span class="detail-value">${ROW_COUNT}</span></div>
   <div class="detail"><span class="detail-label">Total Quantity Disposed</span><span class="detail-value">${TOTAL_QTY_DISPOSED} BTC</span></div>
 </div>
+
+${CONNECTION_SUMMARY_HTML}
 
 ${CSV_NOTE_HTML}
 
