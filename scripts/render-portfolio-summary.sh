@@ -85,7 +85,7 @@ _OUT=$(jq -r '
       .data.btc_capital_gains.average_cost_basis_fiat_per_btc // "",
       .data.btc_capital_gains.total_gain_fiat // ""
     ] | @tsv ),
-  ( .data.balances[]? | "\(.asset_code)\t\(.net)" )
+  ( .data.balances[]? | "\(.asset.ticker)\t\(.net)\t\(.asset.precision // 8)" )
 ')
 
 IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
@@ -94,16 +94,19 @@ IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
   UNREALIZED_GAIN UNREALIZED_PCT UNREALIZED_COST_BASIS TOTAL_COST_BASIS_ALL \
   AVG_COST_BASIS TOTAL_GAIN <<< "$(printf '%s\n' "$_OUT" | head -n 1)"
 
-# Asset-balance rows: format each row's net by its own asset (single-field
-# presentation — BTC: sats→BTC; other: fiat minor units→major).
+# Asset-balance rows: format each net by the asset's own engine-declared
+# precision (net ÷ 10^precision, single-field unit scaling). Covers BTC (8),
+# Liquid L-BTC (8), and Liquid issued assets like USDt at their own precision.
+fmt_units() {  # $1=raw value  $2=precision (defaults to 8)
+  [ -z "${1:-}" ] && return 0
+  local p="${2:-8}"
+  case "$p" in ''|*[!0-9]*) p=8 ;; esac
+  awk -v v="$1" -v p="$p" 'BEGIN { printf "%.*f", p, v / (10 ^ p) }'
+}
 BALANCE_HTML=""
-while IFS=$'\t' read -r _asset _net; do
+while IFS=$'\t' read -r _asset _net _prec; do
   [ -z "$_asset" ] && continue
-  if [ "$_asset" = "BTC" ]; then
-    _disp="$(fmt_btc_sats "$_net") BTC"
-  else
-    _disp="$(fmt_fiat_cents "$_net" "$_asset")"
-  fi
+  _disp="$(fmt_units "$_net" "$_prec") ${_asset}"
   BALANCE_HTML="${BALANCE_HTML}<tr><td>${_asset}</td><td class=\"num\">${_disp}</td></tr>"
 done <<< "$(printf '%s\n' "$_OUT" | tail -n +2)"
 

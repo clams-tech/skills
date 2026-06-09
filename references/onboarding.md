@@ -94,6 +94,8 @@ Ask the user if they have their own Electrum server, Esplora instance, or Bitcoi
 clams onchain create --label blockstream --kind Esplora --url https://blockstream.info/api --select
 ```
 
+This Bitcoin source covers on-chain BTC, Lightning, and exchange connections. A user with **Liquid** wallets also needs a separate Liquid-family source (a Bitcoin source will not sync Liquid) — see [liquid.md](liquid.md).
+
 Other examples if the user has their own infrastructure:
 
 ```bash

@@ -118,6 +118,14 @@ clams onchain list --machine --format json
 clams profiles set --onchain-source-id <ID> --machine --format json
 ```
 
+### → Error mentions "Liquid chain source does not satisfy the connection requirement"
+
+A `LiquidDescriptor` connection needs a **Liquid-family** source (`LiquidEsplora`/`LiquidElectrum`); a Bitcoin source will not work. Create and select one, then re-sync and `clams journals process`. See [liquid.md](liquid.md).
+
+```bash
+clams onchain create --label liquid-blockstream --kind LiquidEsplora --url https://blockstream.info/liquid/api --select --machine --format json
+```
+
 ### → Connection timeout or network error
 
 Check that the endpoint is reachable. For Lightning nodes, verify the node is online. For Tor connections, confirm the proxy is running (`--tor-proxy`).

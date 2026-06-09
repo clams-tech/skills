@@ -12,11 +12,12 @@ All commands below require `--machine --format json` appended. Shown without for
 | `XPub` | On-chain via BIP32 xpub | Yes (needs onchain source) | No |
 | `Descriptor` | On-chain via output descriptors | Yes (needs onchain source) | No |
 | `Address` | On-chain via address list | Yes (needs onchain source) | No |
+| `LiquidDescriptor` | Liquid wallet via CT descriptor, multi-asset (L-BTC + USDt) | Yes (needs **Liquid** onchain source) | No |
 | `Phoenix` | Phoenix wallet CSV import | No | CSV |
 | `River` | River CSV import | No | CSV |
 | `Custom` | Manual/custom adapter | Varies | Varies |
 
-On-chain types (`XPub`, `Descriptor`, `Address`) require an onchain source — see [onboarding.md](onboarding.md) step 7.
+On-chain types (`XPub`, `Descriptor`, `Address`) require a Bitcoin onchain source — see [onboarding.md](onboarding.md) step 7. `LiquidDescriptor` requires a **Liquid-family** onchain source and has its own config/asset rules — see [liquid.md](liquid.md).
 
 ## List Available Kinds
 

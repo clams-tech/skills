@@ -33,11 +33,11 @@ All `scripts/` paths in this skill are relative to the directory containing this
 ## Gotchas
 
 - **Empty reports?** You forgot `clams journals process`. This must run after every sync/import and before any report. It's the #1 mistake.
-- **Amounts are in millisatoshis.** Never convert, round, summarize, or display raw JSON amounts. Always pipe through the render scripts or use `--format csv`.
+- **Amounts are in millisatoshis.** Never convert, round, summarize, or display raw JSON amounts. Always pipe through the render scripts or use `--format csv`. (BTC and Liquid L-BTC follow this; Liquid issued assets such as USDt use their own scale — but you never need it, because you only render the engine's formatted output. See [liquid.md](references/liquid.md).)
 - **`clams reports export` does not exist.** For PDF, pipe JSON through `<skill-dir>/scripts/render-*.sh`. For CSV, use `--format csv --output <path>` on the report command.
 - **`clams init` is interactive-only.** It does not support `--machine` mode. Use the individual commands in [onboarding.md](references/onboarding.md) instead.
 - **`clams setup` is for server admins.** Do not use it in CLI workflows — it configures the Clams server, not the client.
-- **On-chain wallets need an onchain source first.** `XPub`, `Descriptor`, and `Address` connections will fail to sync without one. Create it during onboarding (step 7). When creating these connections, auto-resolve the onchain source and network — see "Resolving Onchain Source and Network" in [connections.md](references/connections.md). Do not ask the user unless genuinely ambiguous.
+- **On-chain wallets need an onchain source first.** `XPub`, `Descriptor`, and `Address` connections will fail to sync without one. Create it during onboarding (step 7). When creating these connections, auto-resolve the onchain source and network — see "Resolving Onchain Source and Network" in [connections.md](references/connections.md). Do not ask the user unless genuinely ambiguous. **Liquid** (`LiquidDescriptor`) needs its own Liquid-family source (`LiquidEsplora`/`LiquidElectrum`) — a Bitcoin source will not work; see [liquid.md](references/liquid.md).
 - **Re-process after metadata changes.** Notes, tags, exclusions, rate overrides, and account adjustments don't take effect until you run `clams journals process` again.
 - **Omitting `--excluded` removes the exclusion.** `clams metadata records excluded set --event-id <ID>` without the `--excluded` flag un-excludes the event — this is intentional but counterintuitive.
 - **Quarantine blocks accurate reports.** Unresolved quarantined events are omitted from reports. Always check `clams journals quarantined` if numbers look wrong.
@@ -54,7 +54,7 @@ All `scripts/` paths in this skill are relative to the directory containing this
 
 ```
 workspace → profile → connections → journals → reports
-                    → onchain sources (for on-chain wallets)
+                    → onchain sources (Bitcoin + Liquid families; for on-chain wallets)
                     → metadata (notes, tags, exclusions)
 ```
 
@@ -75,6 +75,7 @@ workspace → profile → connections → journals → reports
 | Log in, create workspace/profile, configure settings, set up onchain source | [onboarding.md](references/onboarding.md) |
 | Add wallets, list/update/delete connections, sync, import CSV/JSON | [connections.md](references/connections.md) |
 | Manage onchain sources (Esplora, Electrum, Bitcoin RPC), Tor proxy | [onchain.md](references/onchain.md) |
+| Work with Liquid wallets, L-BTC, or Liquid assets (USDt); Liquid onchain source | [liquid.md](references/liquid.md) |
 | Import exchange CSV via custom mapping (csv_mapping), custom connections | [custom-connections.md](references/custom-connections.md) |
 | Find/inspect a specific transaction by txid or event ID | [journal-processing.md](references/journal-processing.md) |
 | Process journals, inspect quarantine, resolve quarantined events | [journal-processing.md](references/journal-processing.md) |

@@ -5,7 +5,7 @@ An [Agent Skill](https://agentskills.io) that teaches AI coding agents how to us
 The skill is organized into reference docs and bundled scripts:
 
 - [`SKILL.md`](SKILL.md) — top-level routing and rules
-- [`references/`](references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, troubleshooting
+- [`references/`](references/) — command syntax and workflows for onboarding, connections, reports, journal processing, metadata, custom CSV imports, Liquid, troubleshooting
 - [`scripts/`](scripts/) — branded PDF render scripts for balance sheet, portfolio summary, and capital gains reports (not available in the CLI itself — this is functionality the skill adds on top of Clams), a WeasyPrint resolver, and a state verification helper
 
 ## Prerequisites

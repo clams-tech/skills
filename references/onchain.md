@@ -1,6 +1,6 @@
 # Onchain Sources
 
-An onchain source is the blockchain backend that on-chain wallet connections (`XPub`, `Descriptor`, `Address`) use to sync data. Each profile has one active onchain source.
+An onchain source is the blockchain backend that on-chain wallet connections use to sync data. A profile keeps one active default **per chain family**: a Bitcoin default (`bitcoin_chain_source_id`) used by `XPub`/`Descriptor`/`Address`, and a Liquid default (`liquid_chain_source_id`) used by `LiquidDescriptor`. `--select` and `clams onchain select` set the default for the source's own family, so both can be set at once.
 
 All commands below require `--machine --format json` appended. Shown without for brevity.
 
@@ -11,8 +11,10 @@ All commands below require `--machine --format json` appended. Shown without for
 | `Esplora` | `https://blockstream.info/api` | None |
 | `Electrum` | `ssl://electrum.example.invalid:50002` | None |
 | `BitcoinRpc` | `http://127.0.0.1:8332` | Cookie file or user/pass |
+| `LiquidEsplora` | `https://blockstream.info/liquid/api` | None |
+| `LiquidElectrum` | `ssl://liquid.example.invalid:50002` | None |
 
-The Clams CLI defaults to Blockstream's Esplora API (`https://blockstream.info/api`) during onboarding.
+The Clams CLI defaults to Blockstream's Esplora API (`https://blockstream.info/api`) during onboarding. The `LiquidEsplora`/`LiquidElectrum` kinds serve Liquid connections only — see [liquid.md](liquid.md).
 
 ## List
 
