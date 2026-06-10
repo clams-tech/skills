@@ -47,7 +47,10 @@ clams onchain create --label liquid-electrum --kind LiquidElectrum \
 - `--select` (and `clams onchain select --id <id>`) sets the default **for that
   source's chain family**. Selecting a Liquid source sets the Liquid default and
   leaves the Bitcoin default untouched, and vice versa — both coexist.
-- The only CLI-exposed Liquid kinds are `LiquidEsplora` and `LiquidElectrum`.
+- Use `LiquidEsplora` or `LiquidElectrum` for `LiquidDescriptor` sync. An
+  `ElementsRpc` (Liquid/Elements Core RPC) kind is also exposed and can be created
+  and selected as a Liquid source, but it is **not yet a `LiquidDescriptor` sync
+  backend** — don't use it for wallet sync.
 
 Manage the Liquid selection explicitly (parallel to the Bitcoin
 `--onchain-source-id` / `--clear-onchain-source-id`):
