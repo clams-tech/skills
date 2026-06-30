@@ -74,7 +74,13 @@ Response shape:
 
 ### Counting events
 
-There is no dedicated count endpoint. To get an exact event count, paginate through all pages and sum `len(items)` on each page. For connections with many events (tens of thousands), this requires many requests — add a 0.5 s delay between pages to avoid rate limiting (see Gotchas in SKILL.md).
+For an overall count, use the dedicated count command — it summarizes grouped event counts from the latest processed snapshot (run `clams journals process` first):
+
+```bash
+clams journals events count --machine --format json
+```
+
+`count` takes no filter flags. For an exact count **filtered** by connection, event-kind, tag, etc., there is no count endpoint — paginate `clams journals events list` with that filter and sum `len(items)` on each page. For connections with many events (tens of thousands), this requires many requests — add a 0.5 s delay between pages to avoid rate limiting (see Gotchas in SKILL.md).
 
 Get a single event:
 
