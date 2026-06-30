@@ -168,7 +168,47 @@ clams connections update --label <LABEL> --new-label <NEW_LABEL>
 
 # Update configuration
 clams connections update --id <CONNECTION_ID> --configuration '<JSON>'
+
+# Change the wallet discovery gap limit (XPub, Descriptor, LiquidDescriptor only).
+# Prefer this over rebuilding the whole --configuration JSON. Default gap limit is 20.
+clams connections update <LABEL_OR_ID> --gap-limit 100
 ```
+
+Other targeted update flags (avoid full `--configuration` rewrites):
+
+- `--rpc-timeout-secs <SECONDS>` — LND and Core Lightning
+- `--connect-timeout-secs <SECONDS>` — Core Lightning
+- `--timeout-secs <SECONDS>` — NWC and Phoenixd
+
+### Raising the gap limit (sparse / reused wallets)
+
+If an on-chain sync misses transactions or UTXOs — common when an xpub/descriptor was reused across wallets or by BTCPay Server / Zaprite / another invoice generator that leaves large address gaps — increase the gap limit and re-sync with `--force-full-sync` so the wider range is re-scanned:
+
+```bash
+clams connections update <LABEL_OR_ID> --gap-limit 100
+clams connections sync <LABEL_OR_ID> --force-full-sync
+```
+
+Then re-process journals. See the quarantine root-cause section in [journal-processing.md](journal-processing.md#quarantine-diagnose-root-cause) — missing onchain history is the usual reason a spend gets quarantined as collaborative.
+
+## Discover Sparse Wallet Activity
+
+For one on-chain wallet connection, scan a specific derivation-index range for activity beyond the gap limit — useful when you know roughly where usage resumes (e.g. a high index after a large BTCPay/Zaprite gap) and don't want to raise the gap limit for every future sync:
+
+```bash
+# External (receive) branch from index 7000 onward
+clams connections discover <LABEL_OR_ID> --keychain external --from 7000
+
+# Bounded range, or the internal (change) branch
+clams connections discover <LABEL_OR_ID> --keychain external --from 7000 --to 10000
+clams connections discover <LABEL_OR_ID> --keychain internal --from 2500
+```
+
+- `--keychain`: `external` (receive) or `internal` (change) — required
+- `--from`: inclusive start index — required
+- `--to`: optional exclusive cap
+
+Re-process journals after discovering.
 
 ## Delete a Connection
 
@@ -191,7 +231,12 @@ clams connections sync --id <CONNECTION_ID>
 
 # Increase parallelism for many connections
 clams connections sync --all --sync-parallelism 8
+
+# Ignore stored checkpoints and re-scan from scratch (use after raising --gap-limit)
+clams connections sync --label <LABEL> --force-full-sync
 ```
+
+A normal sync resumes from the stored checkpoint. After raising the gap limit (or whenever a sync seems to have missed history), add `--force-full-sync` so the connection is re-scanned in full.
 
 ## Import Data
 

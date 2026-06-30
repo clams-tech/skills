@@ -106,6 +106,59 @@ clams journals quarantine list
 clams journals quarantine show --event-id <EVENT_ID>
 ```
 
+## Quarantine: Diagnose Root Cause
+
+A quarantine that looks collaborative (multiple or unrecognized spent inputs) often is **not** — it is frequently an artifact of incomplete onchain sync. **Surface the quarantine to the user before producing any reports**, because unresolved quarantines are omitted and make reports incomplete. Then ask, in plain language, which of these two root causes applies:
+
+1. **Unrecognized spent inputs from incomplete onchain sync.** The onchain sync may not have picked up every transaction or UTXO, so the processor sees inputs it can't attribute to the wallet and flags the spend as collaborative. This happens when the wallet's address usage has a larger gap than the connection's `gap_limit` — for example when an xpub or descriptor has been imported into multiple wallets that derive addresses at different indexes, or when the same xpub/descriptor has also been used by BTCPay Server, Zaprite, or another invoice generator that leaves large address gaps. **Fix: increase the gap limit and re-sync before resolving manually** (see below).
+2. **Actual collaborative or privacy-preserving activity.** The user genuinely did a coinjoin, payjoin, or similar shared-input transaction. **Fix: resolve manually** as collaborative (see [Quarantine: Resolve](#quarantine-resolve)).
+
+Guidance:
+- Do **not** assume coinjoin / privacy-preserving activity, and do **not** silently resolve or continue — ask and let the user confirm which root cause applies.
+- Prefer a wider-gap re-sync **only** when the user's answer points to missing wallet history or UTXOs. If they confirm real collaborative activity, skip the re-sync and resolve manually.
+
+### Re-sync with a larger gap limit (root cause 1)
+
+Raise the gap limit on the affected on-chain connection(s), re-sync, then re-process. The processor may now recognize the previously unknown inputs and clear the quarantine on its own. Use the dedicated `--gap-limit` flag — do **not** rebuild the whole `--configuration` JSON.
+
+```bash
+# 1. Raise the gap limit (XPub, Descriptor, and LiquidDescriptor connections only).
+#    The default gap limit is 20; large external gaps may need 100–500+.
+clams connections update <CONNECTION> --gap-limit 100
+
+# 2. Re-sync. Use --force-full-sync so the wider gap is re-scanned from scratch
+#    instead of resuming from the stored checkpoint.
+clams connections sync <CONNECTION> --force-full-sync
+
+# 3. Re-process journals
+clams journals process
+
+# 4. Re-check quarantine — it may now be clear
+clams journals quarantined
+```
+
+Increase the gap limit incrementally (e.g. 20 → 100 → 500) if the first bump doesn't clear it. If the quarantine persists after a generous gap limit, the inputs are genuinely external — resolve manually as collaborative.
+
+### Targeted discovery for a known large gap (root cause 1, alternative)
+
+When you know roughly *where* the activity resumes — a wallet reused by BTCPay Server / Zaprite / another invoice generator often leaves a large gap and then has activity again at a high derivation index — scan that range directly instead of permanently raising the gap limit for every sync:
+
+```bash
+# Discover sparse activity on the external (receive) branch from index 7000 onward
+clams connections discover <CONNECTION> --keychain external --from 7000
+
+# Cap the scan to a range, or scan the internal (change) branch
+clams connections discover <CONNECTION> --keychain external --from 7000 --to 10000
+clams connections discover <CONNECTION> --keychain internal --from 2500
+```
+
+`--keychain` is `external` (receive) or `internal` (change); `--from` is the inclusive start index and `--to` an optional exclusive cap. After discovery, re-process and re-check quarantine:
+
+```bash
+clams journals process
+clams journals quarantined
+```
+
 ## Quarantine: Resolve
 
 ### Collaborative (Shared Spend)
