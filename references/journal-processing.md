@@ -74,13 +74,28 @@ Response shape:
 
 ### Counting events
 
-For an overall count, use the dedicated count command — it summarizes grouped event counts from the latest processed snapshot (run `clams journals process` first):
+Use the dedicated count command — it reads the latest processed snapshot (run `clams journals process` first):
 
 ```bash
 clams journals events count --machine --format json
 ```
 
-`count` takes no filter flags. For an exact count **filtered** by connection, event-kind, tag, etc., there is no count endpoint — paginate `clams journals events list` with that filter and sum `len(items)` on each page. For connections with many events (tens of thousands), this requires many requests — add a 0.5 s delay between pages to avoid rate limiting (see Gotchas in SKILL.md).
+The response already breaks counts down, so you do **not** need to paginate for per-connection or per-kind totals:
+
+```json
+{
+  "data": {
+    "unique_total": 126,
+    "by_event_kind": [ { "event_kind": "pay", "count": 16 }, ... ],
+    "by_connection": [ { "connection_label": "cold-storage", "total": 20,
+                         "by_event_kind": [ { "event_kind": "transaction", "count": 20 } ] }, ... ]
+  }
+}
+```
+
+Caveats (both observed against the live CLI):
+- `count` takes **no filter flags**. For a count filtered by a dimension it doesn't pre-group — tag, note, date range, account — paginate `clams journals events list` with that filter and sum `len(items)` per page (add a 0.5 s delay between pages; see Gotchas in SKILL.md).
+- `count` can fail with `CLAMS_E_UNKNOWN` ("snapshot rows are not ordered by event cursor key") on profiles that contain Liquid peg-bridge events. If it errors, fall back to paginating `clams journals events list`.
 
 Get a single event:
 
@@ -207,9 +222,13 @@ clams journals quarantine resolutions list
 
 ## Manual Transfer Links
 
-A transfer link manually ties two events together as a **self-transfer** — funds leaving one wallet/connection and arriving in another that you own. Linking them tells the engine to treat the pair as an internal transfer rather than a disposal on one side and an acquisition on the other, so it isn't reported as a taxable event.
+A transfer link manually ties an outgoing event to the incoming event that it funds, so the engine treats the pair as one internal transfer.
 
-Use this when an automatic match wasn't made — e.g. a withdrawal from an exchange connection that lands as an on-chain deposit, or a send from one wallet received by another.
+**Most transfers are matched automatically and cannot (and need not) be linked by hand.** The engine rejects manual links for pairs it already handles itself:
+- On-chain wallet-to-wallet (`transaction` → `transaction`) — *"wallet-to-wallet remains automatic"*
+- Lightning (`pay` → `invoice`) — *"Lightning pay/invoice remains automatic"*
+
+Manual links are only for the specific cross-rail / cross-custodian cases the engine can't auto-match. The CLI enforces which event-kind pairs are allowed and returns a clear error for anything else (`unsupported manual transfer link event kind pair`) — **read the error and follow it; do not assume a pair is supported.**
 
 ### Create a Link
 
@@ -219,7 +238,7 @@ clams journals transfers link \
   --to-kind <EVENT_KIND> --to-event-id <EVENT_ID>
 ```
 
-- `--from-kind` / `--to-kind`: the event kind on each side (`deposit`, `forward`, `invoice`, `pay`, `trade`, `transaction`, `withdrawal`)
+- `--from-kind` / `--to-kind`: the event kind on each side (event kinds: `deposit`, `forward`, `invoice`, `pay`, `trade`, `transaction`, `withdrawal`). Not every combination is accepted — see above.
 - `--from-event-id` / `--to-event-id`: the event IDs being linked (for on-chain events this is the txid)
 - `--transaction-outpoint <OUTPOINT>`: optional; pin the link to a specific output (`<txid>:<vout>`) when an on-chain transaction has several
 
