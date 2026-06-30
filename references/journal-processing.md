@@ -205,6 +205,46 @@ View all persisted quarantine resolutions:
 clams journals quarantine resolutions list
 ```
 
+## Manual Transfer Links
+
+A transfer link manually ties two events together as a **self-transfer** — funds leaving one wallet/connection and arriving in another that you own. Linking them tells the engine to treat the pair as an internal transfer rather than a disposal on one side and an acquisition on the other, so it isn't reported as a taxable event.
+
+Use this when an automatic match wasn't made — e.g. a withdrawal from an exchange connection that lands as an on-chain deposit, or a send from one wallet received by another.
+
+### Create a Link
+
+```bash
+clams journals transfers link \
+  --from-kind <EVENT_KIND> --from-event-id <EVENT_ID> \
+  --to-kind <EVENT_KIND> --to-event-id <EVENT_ID>
+```
+
+- `--from-kind` / `--to-kind`: the event kind on each side (`deposit`, `forward`, `invoice`, `pay`, `trade`, `transaction`, `withdrawal`)
+- `--from-event-id` / `--to-event-id`: the event IDs being linked (for on-chain events this is the txid)
+- `--transaction-outpoint <OUTPOINT>`: optional; pin the link to a specific output (`<txid>:<vout>`) when an on-chain transaction has several
+
+Find the two event IDs with `clams journals events list` / `get` (see above) before linking.
+
+### Inspect Links
+
+```bash
+# List all transfer links
+clams journals transfers list
+
+# Show a single link
+clams journals transfers show <LINK_ID>
+clams journals transfers show --link-id <LINK_ID>
+```
+
+### Delete a Link
+
+```bash
+clams journals transfers delete <LINK_ID>
+clams journals transfers delete --link-id <LINK_ID>
+```
+
+Re-process journals after creating or deleting a link so the change takes effect.
+
 ## After Resolving
 
 Re-process journals to apply the resolutions:

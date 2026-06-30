@@ -79,6 +79,7 @@ workspace → profile → connections → journals → reports
 | Import exchange CSV via custom mapping (csv_mapping), custom connections | [custom-connections.md](references/custom-connections.md) |
 | Find/inspect a specific transaction by txid or event ID | [journal-processing.md](references/journal-processing.md) |
 | Process journals, inspect quarantine, diagnose root cause, resolve quarantined events | [journal-processing.md](references/journal-processing.md) |
+| Link two events as a self-transfer (manual transfer links) | [journal-processing.md](references/journal-processing.md) |
 | Add notes, tags, exclusions, rate overrides, or account adjustments | [metadata.md](references/metadata.md) |
 | Generate balance sheet, balance history, portfolio summary, capital gains, journal entries | [reports.md](references/reports.md) |
 | Verify CLI readiness, check state before/after workflows | [verification.md](references/verification.md) |
