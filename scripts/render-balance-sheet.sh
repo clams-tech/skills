@@ -57,13 +57,30 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-# ── Templater (presentation-only formatting) ──
-# jq extracts engine values to TSV; bash applies single-field presentation
-# formatting (sats→BTC, cents→fiat) via format.sh and concatenates rows.
-# connection_balances[] is filtered to rows whose .kind is in the top-level
-# .included_kinds — exactly what the CLI plain-text Connection Balances
-# section shows (Income/Expenses connections are excluded there too). This
-# is row selection on an engine field, not arithmetic or sign inversion.
+# Format one raw engine amount for display, classified by its asset code, using
+# the same single-field unit scaling the script already applies to BTC:
+#   * fiat codes  → minor units ÷ 100, with currency symbol (fmt_fiat_cents)
+#   * everything else (BTC, Liquid L-BTC, Liquid issued assets like USDt)
+#                 → ÷ 100,000,000 (8-decimal scale), labelled with the asset code
+# Liquid L-BTC is sat-scaled exactly like BTC; mainnet USDt is also 8-decimal,
+# so ÷100,000,000 is correct for them. (The balance-sheet JSON does not carry
+# per-asset precision, so a hypothetical non-8-decimal Liquid asset would need
+# the engine to expose precision — see the repo issue.)
+fmt_bs_amount() {
+  [ -z "${2:-}" ] && { printf ''; return 0; }
+  case "$1" in
+    USD|EUR|GBP|CAD|AUD|NZD|SGD|HKD|MXN|JPY|CNY|CHF) fmt_fiat_cents "$2" "$1" ;;
+    *) printf '%s %s' "$(fmt_btc_sats "$2")" "$1" ;;
+  esac
+}
+
+# ── Templater (presentation-only) ──
+# jq extracts engine values to TSV; bash formats each single amount via
+# fmt_bs_amount (single-field unit scaling — no totals, ratios, or sign logic)
+# and concatenates rows. connection_balances[] is filtered to rows whose .kind
+# is in the top-level .included_kinds — exactly what the CLI plain-text
+# Connection Balances section shows. This is row selection on an engine field,
+# not arithmetic or sign inversion.
 
 JSON=$(cat)
 
@@ -72,49 +89,53 @@ INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds // [] | join(", ")')
 NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final // false | tostring')
 UNKNOWN_ROWS=$(echo "$JSON" | jq -r '.data.issues.unknown_account_rows // 0')
 
-# Account tree → TSV "depth \t label \t btc_sats \t usd_cents"; depth drives
-# indentation only (CSS custom property + calc — no script value math).
+# Account tree → one row per (account, asset). Each amount is formatted by its
+# own asset class via fmt_bs_amount (single-field unit scaling). `depth` drives
+# indentation only (CSS custom property + calc). The account label repeats on
+# each of an account's asset rows.
 ACCOUNT_HTML=""
-while IFS=$'\t' read -r _d _label _btc _usd; do
-  [ -z "$_label" ] && continue
-  [ -n "$_btc" ] && _bd="$(fmt_btc_sats "$_btc")" || _bd=""
-  [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
+while IFS=$'\t' read -r _d _label _asset _raw; do
+  [ -z "$_d" ] && continue
+  _amt="$(fmt_bs_amount "$_asset" "$_raw")"
   [ "$_d" = "0" ] && _cls="root" || _cls="child"
-  ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"${_cls}\"><td class=\"acct\" style=\"--d:${_d}\">${_label}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
+  ACCOUNT_HTML="${ACCOUNT_HTML}<tr class=\"${_cls}\"><td class=\"acct\" style=\"--d:${_d}\">${_label}</td><td>${_asset}</td><td class=\"num\">${_amt}</td></tr>"
 done <<< "$(echo "$JSON" | jq -r '
   def walk(depth):
     . as $n | ($n.balances // []) as $b |
-    (($b | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
-    (($b | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
-    "\(depth)\t\($n.label)\t\($btc)\t\($usd)",
+    ( if ($b | length) == 0
+      then "\(depth)\t\($n.label)\t\t"
+      else ( $b[] | "\(depth)\t\($n.label)\t\(.asset_code)\t\(.net)" )
+      end ),
     (($n.children // [])[] | walk(depth + 1));
   .data.roots[]? | walk(0)
 ')"
 
+# Connection balances → one row per (connection, asset), each amount formatted
+# by its asset class via fmt_bs_amount. Rows are filtered to .included_kinds
+# (row selection on an engine field — the set the CLI Connection Balances shows).
 CONNECTION_HTML=""
-while IFS=$'\t' read -r _label _kind _btc _usd; do
-  [ -z "$_label" ] && continue
-  [ -n "$_btc" ] && _bd="$(fmt_btc_sats "$_btc")" || _bd=""
-  [ -n "$_usd" ] && _ud="$(fmt_fiat_cents "$_usd" USD)" || _ud=""
-  CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${_label}</td><td>${_kind}</td><td class=\"num\">${_bd}</td><td class=\"num\">${_ud}</td></tr>"
+while IFS=$'\t' read -r _label _kind _asset _raw; do
+  [ -z "$_label$_asset" ] && continue
+  _amt="$(fmt_bs_amount "$_asset" "$_raw")"
+  CONNECTION_HTML="${CONNECTION_HTML}<tr><td>${_label}</td><td>${_kind}</td><td>${_asset}</td><td class=\"num\">${_amt}</td></tr>"
 done <<< "$(echo "$JSON" | jq -r '
   (.data.included_kinds // []) as $inc |
   .data.connection_balances[]? |
   select(.kind as $k | ($inc | index($k)) != null) |
-  (((.balances // []) | map(select(.asset_code=="BTC")) | .[0].net) // "") as $btc |
-  (((.balances // []) | map(select(.asset_code=="USD")) | .[0].net) // "") as $usd |
-  "\(.connection_label)\t\(.kind)\t\($btc)\t\($usd)"
+  . as $c | ($c.balances // []) as $b |
+  if ($b | length) == 0
+  then "\($c.connection_label // "")\t\($c.kind)\t\t"
+  else ( $b[] | "\($c.connection_label // "")\t\($c.kind)\t\(.asset_code)\t\(.net)" )
+  end
 ')"
 
-# Totals: format each amount by the row's own asset (BTC=sats, else=cents).
+# Totals: format each asset's debit/credit/net by its own asset class.
 TOTALS_HTML=""
 while IFS=$'\t' read -r _asset _deb _cred _net; do
   [ -z "$_asset" ] && continue
-  if [ "$_asset" = "BTC" ]; then
-    _deb="$(fmt_btc_sats "$_deb")"; _cred="$(fmt_btc_sats "$_cred")"; _net="$(fmt_btc_sats "$_net")"
-  else
-    _deb="$(fmt_fiat_cents "$_deb" "$_asset")"; _cred="$(fmt_fiat_cents "$_cred" "$_asset")"; _net="$(fmt_fiat_cents "$_net" "$_asset")"
-  fi
+  _deb="$(fmt_bs_amount "$_asset" "$_deb")"
+  _cred="$(fmt_bs_amount "$_asset" "$_cred")"
+  _net="$(fmt_bs_amount "$_asset" "$_net")"
   TOTALS_HTML="${TOTALS_HTML}<tr><td>${_asset}</td><td class=\"num\">${_deb}</td><td class=\"num\">${_cred}</td><td class=\"num\">${_net}</td></tr>"
 done <<< "$(echo "$JSON" | jq -r '.data.totals[]? | "\(.asset_code)\t\(.debit_total)\t\(.credit_total)\t\(.net)"')"
 
@@ -291,7 +312,7 @@ cat <<HTMLEOF_BODY
 <h2>Accounts</h2>
 <table>
   <thead>
-    <tr><th>Account</th><th class="num">BTC</th><th class="num">USD</th></tr>
+    <tr><th>Account</th><th>Asset</th><th class="num">Balance</th></tr>
   </thead>
   <tbody>
 ${ACCOUNT_HTML}
@@ -311,7 +332,7 @@ ${TOTALS_HTML}
 <h2>Connection Balances</h2>
 <table>
   <thead>
-    <tr><th>Connection</th><th>Kind</th><th class="num">BTC</th><th class="num">USD</th></tr>
+    <tr><th>Connection</th><th>Kind</th><th>Asset</th><th class="num">Balance</th></tr>
   </thead>
   <tbody>
 ${CONNECTION_HTML}
