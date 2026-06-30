@@ -168,7 +168,19 @@ clams connections update --label <LABEL> --new-label <NEW_LABEL>
 
 # Update configuration
 clams connections update --id <CONNECTION_ID> --configuration '<JSON>'
+
+# Change the wallet discovery gap limit (XPub, Descriptor, LiquidDescriptor only).
+# Prefer this over rebuilding the whole --configuration JSON. Default gap limit is 20.
+clams connections update <LABEL_OR_ID> --gap-limit 100
 ```
+
+Other targeted update flags (avoid full `--configuration` rewrites):
+
+- `--rpc-timeout-secs <SECONDS>` — LND and Core Lightning
+- `--connect-timeout-secs <SECONDS>` — Core Lightning
+- `--timeout-secs <SECONDS>` — NWC and Phoenixd
+
+> Raising `--gap-limit` to recover missed on-chain history (and the targeted `clams connections discover` command) is covered in the quarantine root-cause flow — see [journal-processing.md](journal-processing.md#quarantine-diagnose-root-cause).
 
 ## Delete a Connection
 
@@ -191,7 +203,12 @@ clams connections sync --id <CONNECTION_ID>
 
 # Increase parallelism for many connections
 clams connections sync --all --sync-parallelism 8
+
+# Ignore stored checkpoints and re-scan from scratch (use after raising --gap-limit)
+clams connections sync --label <LABEL> --force-full-sync
 ```
+
+A normal sync resumes from the stored checkpoint. After raising the gap limit (or whenever a sync seems to have missed history), add `--force-full-sync` so the connection is re-scanned in full.
 
 ## Import Data
 

@@ -190,13 +190,31 @@ clams journals quarantined --machine --format json
 
 ### → Quarantined events exist
 
+**Surface the quarantine to the user first** — unresolved quarantined events are omitted from reports, so reporting before resolving produces incomplete numbers.
+
 Inspect each one:
 
 ```bash
 clams journals quarantine show --event-id <EVENT_ID> --machine --format json
 ```
 
-Resolve based on the quarantine reason:
+If a quarantine looks collaborative (unrecognized / shared spent inputs), don't assume it really is. Ask the two root-cause questions from the [quarantine root-cause guide](journal-processing.md#quarantine-diagnose-root-cause):
+
+1. **Incomplete onchain sync** — address gap larger than the connection's gap limit (xpub/descriptor reused across wallets, or used by BTCPay Server / Zaprite / another invoice generator). If this is likely, raise the gap limit and re-sync **before** resolving manually:
+
+```bash
+clams connections update <CONNECTION> --gap-limit 100 --machine --format json
+clams connections sync <CONNECTION> --force-full-sync --machine --format json
+clams journals process --machine --format json
+clams journals quarantined --machine --format json   # may now be clear
+```
+
+   If you know roughly where activity resumes, scan that range directly instead:
+   `clams connections discover <CONNECTION> --keychain external --from <INDEX> --machine --format json`
+
+2. **Real collaborative / privacy activity** — coinjoin, payjoin, or similar. Resolve manually (below).
+
+If the gap-limit re-sync doesn't clear it, or the user confirms genuine collaborative activity, resolve based on the quarantine reason:
 
 - **Collaborative (shared spend / coinjoin):**
 
