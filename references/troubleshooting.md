@@ -95,6 +95,51 @@ If workspace or profile is missing → `clams context set --profile <ID>`. See [
 
 ---
 
+## Symptom: License / Billing / Capacity Error
+
+**Diagnostic:**
+
+```bash
+clams license status --machine --format json
+clams instance status
+clams instance capacity status --machine --format json
+```
+
+### → "There was an issue authorizing this Clams instance with the stored login"
+
+Stored SVC credentials are stale or not bound to this backend instance:
+
+```bash
+clams logout
+clams login
+```
+
+Then retry the failing command. `clams instance status` should show `SVC credentials bound: yes`.
+
+### → License inactive (`revoked`, expired, or never purchased)
+
+Surface the `license status` output to the user. Renewal or purchase is **their decision** — see
+the payment rules in [licensing.md](licensing.md). Never start a checkout unprompted.
+
+### → `Profile capacity limit reached: <used> of <limit> profiles are in use`
+
+The instance has no free profile slots. `0 of 0` on a fresh root usually means the license's
+included capacity belongs to the subject's *first* instance (reinstall / second machine).
+Quote first, purchase only with explicit user confirmation:
+
+```bash
+clams instance capacity quote --profiles 1
+clams instance capacity add --profiles 1 --payment card   # user-confirmed only
+```
+
+### → Capacity purchase confirmed but profile creation still fails
+
+The stored entitlement can briefly lag a capacity change. The CLI refreshes automatically —
+retry the command once; if it still reports stale capacity, run `clams login` and retry.
+See [licensing.md](licensing.md).
+
+---
+
 ## Symptom: Sync Failure
 
 **Diagnostic:** Run the sync and read the error JSON.
