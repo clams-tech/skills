@@ -28,7 +28,9 @@ This will open the user's browser for authentication. **Before running this comm
 
 Once init completes, the user is logged in with a workspace and profile created. Proceed to step 6.
 
-**Important:** Do NOT use `clams login`, `clams workspaces create`, or `clams profiles create` as standalone commands on a fresh install. The CLI will reject them with "First run requires interactive onboarding; run `clams init`."
+**Important:** prefer `clams init` over the standalone commands on a fresh install. `clams login`
+does work standalone, but leaves the backend uninitialized — workspace/profile commands and paid
+workflows still fail until `init` (or `setup`) has provisioned the data root and license.
 
 ## 3. Re-authentication (Existing Install)
 

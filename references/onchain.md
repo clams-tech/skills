@@ -4,6 +4,11 @@ An onchain source is the blockchain backend that on-chain wallet connections use
 
 All commands below require `--machine --format json` appended. Shown without for brevity.
 
+> **Naming:** `clams onchain` is a compatibility alias — the canonical command tree is
+> `clams chain-sources` (identical subcommands: `list`, `create`, `select`, `update`, `delete`).
+> The `onchain` form works everywhere in this doc; if it is ever removed, substitute
+> `chain-sources`.
+
 ## Kinds
 
 | Kind | URL example | Auth |

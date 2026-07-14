@@ -82,6 +82,7 @@ workspace → profile → connections → journals → reports
 | Process journals, inspect quarantine, diagnose root cause, resolve quarantined events | [journal-processing.md](references/journal-processing.md) |
 | Link two events as a self-transfer (manual transfer links) | [journal-processing.md](references/journal-processing.md) |
 | Add notes, tags, exclusions, rate overrides, or account adjustments | [metadata.md](references/metadata.md) |
+| List accounts, create/update/delete custom accounts (chart of accounts) | [accounts.md](references/accounts.md) |
 | Generate balance sheet, balance history, portfolio summary, capital gains, journal entries | [reports.md](references/reports.md) |
 | Check license status, renew, pay invoices, view/buy profile capacity, instance status/billing owner | [licensing.md](references/licensing.md) |
 | Verify CLI readiness, check state before/after workflows | [verification.md](references/verification.md) |
