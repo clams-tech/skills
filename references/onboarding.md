@@ -15,19 +15,22 @@ If `auth.status` is not `"authenticated"`, proceed to onboarding.
 On a fresh install, the CLI gates all commands behind `clams init`. Use non-interactive mode:
 
 ```bash
-clams init --workspace-label default --profile-label default
+clams init --no-input --new-workspace-label default --new-profile-label default
 ```
 
-This will open the user's browser for authentication. **Before running this command**, tell the user a browser window will open for login. Use a **5-minute timeout** since the user needs to complete browser authentication:
+(`--workspace-label` / `--profile-label` still work as compatibility aliases; prefer the canonical `--new-*` names.)
 
-```bash
-# Example with timeout (agent should use 300000ms / 5 minutes)
-clams init --workspace-label default --profile-label default
-```
+This will open the user's browser for authentication. **Before running this command**, tell the user a browser window will open for login. Use a **5-minute timeout** since the user needs to complete browser authentication.
+
+**License payment:** `init` also enforces the Clams license. If the account has no active license, init starts a checkout (terms acceptance, then card via browser or Lightning via BOLT11 invoice/QR, then polling until payment confirms). Do not pre-answer any of that for the user — see the payment rules in [licensing.md](licensing.md). Pass `--payment card` or `--payment lightning` only when the user has chosen a method.
+
+**Profile capacity:** profile creation can fail with `Profile capacity limit reached` when the instance has no free capacity slots (common on a reinstall or second machine, since the license's included capacity stays with the first instance). See [licensing.md](licensing.md) for diagnosis and, with the user's explicit go-ahead, `clams instance capacity add`.
 
 Once init completes, the user is logged in with a workspace and profile created. Proceed to step 6.
 
-**Important:** Do NOT use `clams login`, `clams workspaces create`, or `clams profiles create` as standalone commands on a fresh install. The CLI will reject them with "First run requires interactive onboarding; run `clams init`."
+**Important:** prefer `clams init` over the standalone commands on a fresh install. `clams login`
+does work standalone, but leaves the backend uninitialized — workspace/profile commands and paid
+workflows still fail until `init` (or `setup`) has provisioned the data root and license.
 
 ## 3. Re-authentication (Existing Install)
 
@@ -140,5 +143,10 @@ Clear with `--no-tor-proxy`.
 
 ## Notes
 
-- `clams setup` is for **server administration only** -- do NOT use it in CLI workflows.
+- `clams setup` initializes the backend data root, OAuth credentials, and license — it is the
+  lower-level onboarding step that `clams init` wraps. It can start a license checkout, so follow
+  the payment rules in [licensing.md](licensing.md). (Server administration lives under
+  `clams server`, not `clams setup`.)
 - `clams login` can be used standalone if the user is already initialized but needs to re-authenticate.
+- `clams instance status` shows instance binding, local admin, and billing owner for the current
+  data root — useful when paid workflows are rejected after login. See [licensing.md](licensing.md).

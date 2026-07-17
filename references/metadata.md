@@ -61,10 +61,13 @@ clams metadata tags list
 
 ### Get, Update, Delete a Tag
 
+The tag selector is a **positional** (UUID or code) or `--id` — there is no `--code` flag on
+these commands (`--code` exists only on `tags create`):
+
 ```bash
-clams metadata tags get --code <CODE>
-clams metadata tags update --code <CODE> --label "New Label"
-clams metadata tags delete --code <CODE>
+clams metadata tags get <CODE_OR_UUID>
+clams metadata tags update <CODE_OR_UUID> --label "New Label"
+clams metadata tags delete <CODE_OR_UUID>
 ```
 
 ### Apply a Tag to an Event
@@ -111,7 +114,9 @@ clams metadata records rate clear --event-id <EVENT_ID>
 
 ## Account Adjustments
 
-Reassign a journal entry to a different account. First get the entry signatures:
+Reassign a journal entry to a different account. Find the target `--account-id` with
+`clams accounts list` — or create a custom account first — see [accounts.md](accounts.md).
+Then get the entry signatures:
 
 ```bash
 clams journals events get <EVENT_ID> --show-signatures

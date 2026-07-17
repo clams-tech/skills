@@ -33,7 +33,7 @@ If no working WeasyPrint is found, the render script **exits with code 3** and p
 | Report | Default | Plain | CSV | PDF |
 |---|---|---|---|---|
 | Balance Sheet | plain | Yes | No | Yes |
-| Balance History | plain | Yes | Yes | No |
+| Balance History | plain | Yes | No | No |
 | Portfolio Summary | plain | Yes | No | Yes |
 | Capital Gains | csv | No | Yes | Yes |
 | Journal Entries | csv | No | Yes | No |
@@ -67,8 +67,8 @@ clams reports balance-history \
 # Filter by connection, account, or asset
 clams reports balance-history --connection <LABEL> --asset BTC --interval week
 
-# CSV export
-clams reports balance-history --format csv --output <path>.csv
+# No CSV support (formats: plain, tree, json, yaml). For balance data in a
+# spreadsheet, export Journal Entries as CSV instead.
 ```
 
 Intervals: `hour`, `day`, `week`, `month`.
@@ -94,7 +94,9 @@ clams reports portfolio-summary --machine --format json \
 
 Per-disposal realized gains/losses with cost basis, proceeds, fees, ROI, and holding period for tax reporting.
 
-Requires `--start` and `--end` (RFC3339 UTC timestamps). Does **not** support `--format plain`.
+`--start` and `--end` (RFC3339 UTC timestamps) are optional — omitting them reports over the full
+history. Always pass an explicit range for tax reporting (e.g. the tax year). Does **not** support
+`--format plain`.
 
 ```bash
 # Default — save as CSV

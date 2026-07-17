@@ -43,7 +43,7 @@ clams journals events list --note-contains "hardware"
 clams journals events list --account <ACCOUNT_LABEL_OR_ID>
 
 # Sort oldest-first (default is newest-first)
-clams journals events list --ascending
+clams journals events list --sort asc
 
 # Wide output (shows accounts, tags, excluded, note preview)
 clams journals events list --wide
