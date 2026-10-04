@@ -38,13 +38,18 @@ _ccy_symbol() {
 }
 
 # Core money formatter: a single already-major-unit value -> grouped 2 dp
-# with currency symbol, sign before the symbol ("-$1,234.56").
+# (half away from zero) with currency symbol, sign before the symbol
+# ("-$1,234.56").
 _fmt_money_major() {
   local v="${1:-}" sym="${2:-}"
   [ -z "$v" ] && return 0
   awk -v v="$v" -v s="$sym" 'BEGIN {
     n = v + 0; sign = (n < 0) ? "-" : ""; if (n < 0) n = -n
-    t = sprintf("%.2f", n); split(t, a, "."); ip = a[1]; fp = a[2]
+    # Round half away from zero, like the Clams CLI. Engine amounts carry at
+    # most 3 decimals, but 1293.685 is stored as 1293.68499... in binary, so
+    # a plain %.2f would round it down. The nudge is far below 0.001.
+    t = sprintf("%.2f", n + 0.0000001); split(t, a, "."); ip = a[1]; fp = a[2]
+    if (t + 0 == 0) sign = ""
     out = ""; c = 0
     for (i = length(ip); i >= 1; i--) {
       out = substr(ip, i, 1) out; c++
