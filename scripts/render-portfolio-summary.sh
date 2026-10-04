@@ -61,7 +61,7 @@ read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 # Single jq pass over stdin (the huge input is parsed once; only this small
 # output is held). Line 1 = TSV scalars; remaining lines = "asset<TAB>net"
 # (raw engine .net). Presentation formatting of INDIVIDUAL fields (sats→BTC,
-# cents→fiat, symbol, %, date) is applied via format.sh. NO multi-field
+# Liquid base units→units, symbol, %, date) is applied via format.sh. NO multi-field
 # derivation, NO computed figures, NO chart.
 _OUT=$(jq -r '
   ( [
@@ -85,7 +85,7 @@ _OUT=$(jq -r '
       .data.btc_capital_gains.average_cost_basis_fiat_per_btc // "",
       .data.btc_capital_gains.total_gain_fiat // ""
     ] | @tsv ),
-  ( .data.balances[]? | "\(.asset.ticker)\t\(.net)\t\(.asset.precision // 8)" )
+  ( .data.balances[]? | "\(.asset.ticker)\t\(.net)\t\(.asset.precision // 8)\t\(.asset.reference.kind // "")" )
 ')
 
 IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
@@ -94,19 +94,27 @@ IFS=$'\t' read -r SNAPSHOT_TIMESTAMP FIAT_CURRENCY ALGORITHM NON_FINAL \
   UNREALIZED_GAIN UNREALIZED_PCT UNREALIZED_COST_BASIS TOTAL_COST_BASIS_ALL \
   AVG_COST_BASIS TOTAL_GAIN <<< "$(printf '%s\n' "$_OUT" | head -n 1)"
 
-# Asset-balance rows: format each net by the asset's own engine-declared
-# precision (net ÷ 10^precision, single-field unit scaling). Covers BTC (8),
-# Liquid L-BTC (8), and Liquid issued assets like USDt at their own precision.
-fmt_units() {  # $1=raw value  $2=precision (defaults to 8)
+# Asset-balance rows: format each net by its engine unit (see format.sh).
+#   * Liquid assets (L-BTC, issued assets like USDt) are base units:
+#     net ÷ 10^precision, using the engine-declared precision.
+#   * BTC is sats: ÷ 10^8.
+#   * Every other system asset (fiat, USDT, USDC) is already in native units:
+#     shown at its display precision, never divided.
+fmt_units() {  # $1=raw value  $2=precision (defaults to 8)  $3=divide (1/0)
   [ -z "${1:-}" ] && return 0
   local p="${2:-8}"
   case "$p" in ''|*[!0-9]*) p=8 ;; esac
-  awk -v v="$1" -v p="$p" 'BEGIN { printf "%.*f", p, v / (10 ^ p) }'
+  awk -v v="$1" -v p="$p" -v d="${3:-1}" \
+    'BEGIN { printf "%.*f", p, (d == 1) ? v / (10 ^ p) : v + 0 }'
 }
 BALANCE_HTML=""
-while IFS=$'\t' read -r _asset _net _prec; do
+while IFS=$'\t' read -r _asset _net _prec _kind; do
   [ -z "$_asset" ] && continue
-  _disp="$(fmt_units "$_net" "$_prec") ${_asset}"
+  if [ "$_kind" = "liquid" ] || [ "$_asset" = "BTC" ]; then
+    _disp="$(fmt_units "$_net" "$_prec" 1) ${_asset}"
+  else
+    _disp="$(fmt_units "$_net" "$_prec" 0) ${_asset}"
+  fi
   BALANCE_HTML="${BALANCE_HTML}<tr><td>${_asset}</td><td class=\"num\">${_disp}</td></tr>"
 done <<< "$(printf '%s\n' "$_OUT" | tail -n +2)"
 

@@ -57,19 +57,25 @@ WEASYERR
 fi
 read -ra WEASY_CMD <<< "$WEASY_CMD_STR"
 
-# Format one raw engine amount for display, classified by its asset code, using
-# the same single-field unit scaling the script already applies to BTC:
-#   * fiat codes  → minor units ÷ 100, with currency symbol (fmt_fiat_cents)
-#   * everything else (BTC, Liquid L-BTC, Liquid issued assets like USDt)
-#                 → ÷ 100,000,000 (8-decimal scale), labelled with the asset code
+# Format one raw engine amount for display, classified by its asset code. The
+# engine's units differ by asset class (see format.sh), so the scaling does too:
+#   * fiat codes   → already major units; symbol + 2 dp, no scaling (fmt_fiat_major)
+#   * USDT, USDC   → system stablecoins, already native units, no scaling
+#   * everything else (BTC sats, Liquid L-BTC, Liquid issued assets like USDt)
+#                  → ÷ 100,000,000 (8-decimal scale), labelled with the asset code
 # Liquid L-BTC is sat-scaled exactly like BTC; mainnet USDt is also 8-decimal,
 # so ÷100,000,000 is correct for them. (The balance-sheet JSON does not carry
 # per-asset precision, so a hypothetical non-8-decimal Liquid asset would need
-# the engine to expose precision — see the repo issue.)
+# the engine to expose precision — see the repo issue.) Codes match exactly:
+# Liquid USDt is "USDt", the system stablecoin is "USDT".
 fmt_bs_amount() {
   [ -z "${2:-}" ] && { printf ''; return 0; }
+  if is_fiat_code "$1"; then
+    fmt_fiat_major "$2" "$1"
+    return 0
+  fi
   case "$1" in
-    USD|EUR|GBP|CAD|AUD|NZD|SGD|HKD|MXN|JPY|CNY|CHF) fmt_fiat_cents "$2" "$1" ;;
+    USDT|USDC) fmt_native_units "$2" "$1" ;;
     *) printf '%s %s' "$(fmt_btc_sats "$2")" "$1" ;;
   esac
 }
@@ -84,7 +90,8 @@ fmt_bs_amount() {
 
 JSON=$(cat)
 
-SNAPSHOT_TIMESTAMP=$(fmt_ts "$(echo "$JSON" | jq -r '.data.snapshot_timestamp // ""')")
+# The report date: --as-of when one was given, else the snapshot time.
+SNAPSHOT_TIMESTAMP=$(fmt_ts "$(echo "$JSON" | jq -r '.data.as_of_timestamp // .data.snapshot_timestamp // ""')")
 INCLUDED_KINDS=$(echo "$JSON" | jq -r '.data.included_kinds // [] | join(", ")')
 NON_FINAL=$(echo "$JSON" | jq -r '.data.non_final // false | tostring')
 UNKNOWN_ROWS=$(echo "$JSON" | jq -r '.data.issues.unknown_account_rows // 0')
@@ -286,7 +293,7 @@ cat <<HTMLEOF_BODY
   <div class="header-left">
     <div class="report-name">Balance Sheet</div>
     <div class="report-meta">
-      ${SNAPSHOT_TIMESTAMP}<br>
+      As of ${SNAPSHOT_TIMESTAMP}<br>
       Included: ${INCLUDED_KINDS}
     </div>
     ${NON_FINAL_HTML}

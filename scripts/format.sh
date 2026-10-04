@@ -4,8 +4,15 @@
 # Boundary (must hold for every function here):
 #   * Input is exactly ONE engine field.
 #   * Output is that SAME value, made human-readable: a fixed-constant unit
-#     scale (sats÷100000000, cents÷100), decimal/locale formatting, a
-#     currency symbol, a "%", or a readable date.
+#     scale (sats÷100000000), decimal/locale formatting, a currency symbol,
+#     a "%", or a readable date.
+#
+# Engine amount units (see the Clams CLI's amount_display.rs):
+#   * BTC amounts are sats (3-decimal msat scale): ÷100,000,000 for BTC.
+#   * Fiat and system stablecoins (USDT, USDC) are already in their native
+#     units: 1234.560 USD is $1,234.56. Never divide them.
+#   * Liquid assets (L-BTC, issued assets like USDt) are integer base units:
+#     ÷10^precision, where the engine declares the precision.
 #   * No function combines fields, derives a new figure, infers a sign from
 #     account type, aggregates, or computes geometry. That is *computation*
 #     and belongs in the Clams engine.
@@ -54,12 +61,19 @@ fmt_fiat_major() {
   _fmt_money_major "$1" "$(_ccy_symbol "${2:-}")"
 }
 
-# minor-unit fiat field (cents) -> "$12.34"  (÷100, fixed constant).
-fmt_fiat_cents() {
+# true when the code is one of the engine's fiat currencies
+# (FiatCurrency in the Clams CLI).
+is_fiat_code() {
+  case "${1:-}" in
+    USD|EUR|JPY|GBP|CNY|AUD|CAD|CHF|HKD|NZD|SEK|KRW|SGD|MXN|INR|BRL|NOK|ZAR|DKK) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# native-unit amount -> "250.123456 USDT"  (no scaling; value as emitted).
+fmt_native_units() {
   [ -z "${1:-}" ] && return 0
-  local mj
-  mj=$(awk -v v="$1" 'BEGIN { printf "%.6f", v / 100 }')
-  _fmt_money_major "$mj" "$(_ccy_symbol "${2:-}")"
+  printf '%s %s' "$1" "${2:-}"
 }
 
 # bare percentage number -> "<n>%"  (append unit only).
