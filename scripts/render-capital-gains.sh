@@ -111,7 +111,7 @@ fi
 
 # ── Connection summary (per-connection / mixed / unattributed aggregates) ──
 # jq emits one TSV line per engine-provided aggregate, in the engine's order;
-# bash applies single-field presentation formatting (sats→BTC, cents/major
+# bash applies single-field presentation formatting (sats→BTC, major-unit
 # fiat→symbol, %, friendly kind label) via format.sh. No re-sorting, no
 # re-aggregation, no totals math — the engine already bucketed and summed.
 # Delimiter is the ASCII unit separator (0x1f), not a tab: tab is IFS
